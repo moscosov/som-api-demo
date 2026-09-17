@@ -1,0 +1,137 @@
+{
+  "info": {
+    "name": "CUY6142 - Orden de Servicio (API Demo eTOM/SOM)",
+    "description": "Colección Postman para el API demo de Orden de Servicio. Antes de usar, edita las variables de colección 'host' y 'api_key' en la pestaña Variables (icono del ojo, arriba a la derecha, o clic derecho en la colección > Edit). Documento asociado: GuiaRapida_OrdenServicio_DuocUC.md",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "host",
+      "value": "localhost:8081",
+      "description": "Modo distribuido: localhost:8081. Modo demo en vivo: la IP que anuncia el docente, ej. 192.168.x.x:8081"
+    },
+    {
+      "key": "api_key",
+      "value": "DUOC-CUY6142-DEMO",
+      "description": "Clave fija del demo, ya viene en el código del servidor"
+    },
+    {
+      "key": "id_orden",
+      "value": "",
+      "description": "Pega aquí el id devuelto por 'Crear orden' para usarlo en los demás requests"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Crear orden",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente_id\": \"CL-10457\",\n  \"tipo_servicio\": \"INTERNET\",\n  \"prioridad\": \"ALTA\"\n}"
+        },
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes"]
+        },
+        "description": "Respuesta esperada: 201. Copia el 'id' de la respuesta en la variable de colección 'id_orden' para usarlo en los siguientes requests."
+      }
+    },
+    {
+      "name": "2. Listar ordenes",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" }
+        ],
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes"]
+        },
+        "description": "Respuesta esperada: 200, lista de todas las ordenes creadas."
+      }
+    },
+    {
+      "name": "3. Consultar orden",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" }
+        ],
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes/{{id_orden}}",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes", "{{id_orden}}"]
+        },
+        "description": "Respuesta esperada: 200 (o 404 si el id_orden no existe)."
+      }
+    },
+    {
+      "name": "4. Reemplazar orden (PUT)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente_id\": \"CL-10457\",\n  \"tipo_servicio\": \"INTERNET\",\n  \"prioridad\": \"MEDIA\",\n  \"descripcion\": \"actualizado\"\n}"
+        },
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes/{{id_orden}}",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes", "{{id_orden}}"]
+        },
+        "description": "Respuesta esperada: 200 (o 409 si la orden ya esta COMPLETADA o CANCELADA)."
+      }
+    },
+    {
+      "name": "5. Transicionar estado (PATCH)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"estado\": \"EN_PROGRESO\"\n}"
+        },
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes/{{id_orden}}",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes", "{{id_orden}}"]
+        },
+        "description": "Respuesta esperada: 200 (o 409 si la transicion no es valida). Cambia el valor de 'estado' en el body segun la transicion que quieras probar: EN_PROGRESO, COMPLETADA o CANCELADA."
+      }
+    },
+    {
+      "name": "6. Cancelar orden (DELETE)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" }
+        ],
+        "url": {
+          "raw": "http://{{host}}/api/v1/ordenes/{{id_orden}}",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "ordenes", "{{id_orden}}"]
+        },
+        "description": "Respuesta esperada: 200 (o 409 si la orden ya esta COMPLETADA o CANCELADA)."
+      }
+    }
+  ]
+}
