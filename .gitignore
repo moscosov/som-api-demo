@@ -6,3 +6,7 @@ venv/
 .env
 *.log
 .DS_Store
+/bin
+/lib64
+/lib
+pyvenv.cfg
