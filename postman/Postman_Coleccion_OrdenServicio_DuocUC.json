@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "CUY6142 - Orden de Servicio (API Demo eTOM/SOM)",
-    "description": "Colección Postman para el API demo de Orden de Servicio. Antes de usar, edita las variables de colección 'host' y 'api_key' en la pestaña Variables (icono del ojo, arriba a la derecha, o clic derecho en la colección > Edit). Documento asociado: GuiaRapida_OrdenServicio_DuocUC.md",
+    "description": "Colección Postman para el API demo de Orden de Servicio. Antes de usar, edita las variables de colección 'host', 'api_key' y 'webhook_url' en la pestaña Variables (icono del ojo, arriba a la derecha, o clic derecho en la colección > Edit). 'api_key' corresponde al canal GUI (Contrato Operativo v1.3, Sección 4); existe una segunda clave para el canal CRM, reservada para la implementación de referencia crm-som, que esta colección no usa. Documento asociado: GuiaRapida_OrdenServicio_DuocUC.md",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,12 +13,17 @@
     {
       "key": "api_key",
       "value": "DUOC-CUY6142-DEMO",
-      "description": "Clave fija del demo, ya viene en el código del servidor"
+      "description": "Clave del canal GUI, fija, ya viene en el código del servidor"
     },
     {
       "key": "id_orden",
       "value": "",
       "description": "Pega aquí el id devuelto por 'Crear orden' para usarlo en los demás requests"
+    },
+    {
+      "key": "webhook_url",
+      "value": "http://localhost:8082/webhooks/ordenes",
+      "description": "URL del receptor de notificaciones asíncronas (ej. crm-som), usada solo en el request 'Registrar webhook'"
     }
   ],
   "item": [
@@ -114,7 +119,7 @@
           "host": ["{{host}}"],
           "path": ["api", "v1", "ordenes", "{{id_orden}}"]
         },
-        "description": "Respuesta esperada: 200 (o 409 si la transicion no es valida). Cambia el valor de 'estado' en el body segun la transicion que quieras probar: EN_PROGRESO, COMPLETADA o CANCELADA."
+        "description": "Respuesta esperada: 200 (o 409 si la transicion no es valida). Cambia el valor de 'estado' en el body segun la transicion que quieras probar: EN_PROGRESO, COMPLETADA o CANCELADA. Si hay un webhook registrado (item 7), la respuesta incluye ademas \"notificacion_webhook\": \"pendiente\"."
       }
     },
     {
@@ -130,7 +135,44 @@
           "host": ["{{host}}"],
           "path": ["api", "v1", "ordenes", "{{id_orden}}"]
         },
-        "description": "Respuesta esperada: 200 (o 409 si la orden ya esta COMPLETADA o CANCELADA)."
+        "description": "Respuesta esperada: 200 (o 409 si la orden ya esta COMPLETADA o CANCELADA). Si hay un webhook registrado (item 7), la respuesta incluye ademas \"notificacion_webhook\": \"pendiente\"."
+      }
+    },
+    {
+      "name": "7. Registrar webhook",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"{{webhook_url}}\"\n}"
+        },
+        "url": {
+          "raw": "http://{{host}}/api/v1/webhooks",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "webhooks"]
+        },
+        "description": "Respuesta esperada: 201. Registra el receptor de notificaciones asincronas de cambio de estado (Contrato Operativo, Seccion 6.2). Registrar un webhook nuevo reemplaza al anterior — solo se admite un receptor activo a la vez."
+      }
+    },
+    {
+      "name": "8. Consultar webhooks fallidos",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-API-Key", "value": "{{api_key}}" }
+        ],
+        "url": {
+          "raw": "http://{{host}}/api/v1/webhooks/fallos",
+          "protocol": "http",
+          "host": ["{{host}}"],
+          "path": ["api", "v1", "webhooks", "fallos"]
+        },
+        "description": "Respuesta esperada: 200, lista de intentos de entrega de webhook fallidos (vacia si no hay ninguno). Mecanismo de conciliacion: no hay reintentos automaticos (Contrato Operativo, Seccion 6.7)."
       }
     }
   ]

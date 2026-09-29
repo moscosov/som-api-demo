@@ -11,8 +11,8 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificación Funcional  Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 1.0 |
-| Fecha | 15/09/2026 |
+| Versión | 2.0 |
+| Fecha | 21/09/2026 |
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142  Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2  Fundamentos y Consumo de APIs (complementa 2.3/2.4) |
@@ -33,6 +33,7 @@
 | Versión | Fecha | Preparado por | Sección y texto revisado |
 | --- | --- | --- | --- |
 | 1.0 | 15/09/2026 | Pablo Moscoso | Versión inicial |
+| 2.0 | 21/09/2026 | Pablo Moscoso | Cambio mayor, coordinado con Contrato Operativo v1.3: Sección 3 (el Sistema Cliente cuenta con implementación de referencia `crm-som`, canal CRM); Sección 4 (abreviación CRM); Sección 5 (casos de uso de notificación asíncrona); Sección 8 (autenticación diferenciada por canal, alcance real de la integración CRM); Sección 9 (referencia a `crm_som.py`) |
 
 ---
 
@@ -50,11 +51,11 @@ Sirve como material de apoyo en el curso CUY6142 para que el estudiante observe 
 
 | Actor | Naturaleza | Rol |
 | --- | --- | --- |
-| Sistema Cliente | Automatizado (negocio) | Sistema externo  típicamente un CRM o un canal de venta  que emite órdenes de servicio de forma programática. Es el actor principal en la operación normal de un SOM en producción. |
+| Sistema Cliente | Automatizado (negocio) | Sistema externo — típicamente un CRM o un canal de venta — que emite órdenes de servicio de forma programática. Es el actor principal en la operación normal de un SOM en producción. Cuenta con una implementación de referencia (`crm-som`), autenticada con credencial propia (canal CRM): crea, lista, consulta, edita y cancela órdenes; no transiciona estado (`PATCH` queda reservado al Actor de Soporte, canal GUI). También actúa como receptor de la notificación asíncrona de cambio de estado (Contrato Operativo, Sección 6). |
 | Actor de Soporte | Manual (negocio, real) | Personal técnico que interactúa directamente con el API mediante herramientas como Postman o `curl` para tareas de soporte: conciliación de órdenes, validación de estado, resolución de incidentes operativos. No es una simplificación pedagógica  refleja un patrón real de operación. |
 | Estudiante / Docente | Pedagógico (curso) | En este ejercicio, asume el rol del Actor de Soporte, interactuando directamente con el API vía Postman o `curl`  replicando el mismo flujo de trabajo de un Actor de Soporte real, no uno inventado para la clase. |
 
-El Sistema Cliente no se implementa en este ejercicio: el estudiante lo reemplaza manualmente al crear órdenes directamente, asumiendo ese rol además del de Actor de Soporte según el caso de uso.
+El Sistema Cliente cuenta ahora con una implementación de referencia (`crm-som`), de uso personal del docente en esta etapa — no forma aún parte del material que usa el estudiante. Mientras esa adaptación no ocurra, el estudiante sigue reemplazando al Sistema Cliente manualmente al crear órdenes directamente vía Postman o `curl`, asumiendo ese rol además del de Actor de Soporte según el caso de uso.
 
 ---
 
@@ -64,6 +65,7 @@ El Sistema Cliente no se implementa en este ejercicio: el estudiante lo reemplaz
 | --- | --- |
 | API | Application Programming Interface |
 | SOM | Service Order Management |
+| CRM | Customer Relationship Management |
 | eTOM | enhanced Telecom Operations Map  marco de procesos de negocio de TM Forum |
 | TMF641 | Service Ordering Management  API abierto de TM Forum |
 | REST | Representational State Transfer |
@@ -81,6 +83,8 @@ El Sistema Cliente no se implementa en este ejercicio: el estudiante lo reemplaz
 | Actualización de los datos de una orden en curso | Actor de Soporte: `PUT /ordenes/{id}` | Contrato Operativo, Sección 5 |
 | Avance de una orden por las etapas de cumplimiento | Actor de Soporte: `PATCH /ordenes/{id}` (`RECIBIDA` → `EN_PROGRESO` → `COMPLETADA`) | Contrato Operativo, Sección 5; Contrato de Datos, Sección 5 |
 | Cancelación de una orden en curso | Actor de Soporte: `DELETE /ordenes/{id}` | Contrato Operativo, Sección 5 |
+| Registro del receptor de notificaciones | Sistema Cliente: `POST /webhooks` | Contrato Operativo, Sección 6.2 |
+| Notificación de cambio de estado al Sistema Cliente | Sistema Cliente: recibe la notificación asíncrona tras un `PATCH` o `DELETE` exitoso | Contrato Operativo, Sección 6 |
 | Intento de conciliar o corregir una orden ya cerrada | Actor de Soporte: `PUT` o `DELETE /ordenes/{id}` sobre una orden en `COMPLETADA` o `CANCELADA` → rechazada | Contrato Operativo, Sección 7 (código `409`) |
 
 El último escenario solo tiene sentido desde el Actor de Soporte, no desde el Sistema Cliente: ilustra por qué existe la restricción de estado terminal, no solo que existe.
@@ -99,7 +103,7 @@ El detalle técnico completo de esta máquina de estados, incluida la tabla de t
 
 ## 7. Relación con el Proceso de Negocio
 
-Este sistema simplifica, con fines educativos, el proceso eTOM **Order Handling** (Process Identifier 1.1.1.5), dentro del área de Customer Relationship Management / Operations del marco eTOM de TM Forum. Order Handling es responsable de aceptar y emitir órdenes, determinar su factibilidad, y dar seguimiento a su estado hasta notificar su cumplimiento al cliente  exactamente el alcance que cubre este API.
+Este sistema simplifica, con fines educativos, el proceso eTOM **Order Handling** (Process Identifier 1.1.1.5), dentro del área de Customer Relationship Management / Operations del marco eTOM de TM Forum. Order Handling es responsable de aceptar y emitir órdenes, determinar su factibilidad, y dar seguimiento a su estado hasta notificar su cumplimiento al cliente  exactamente el alcance que cubre este API. La notificación asíncrona de cambio de estado (Contrato Operativo, Sección 6) es la implementación concreta de ese último tramo — notificar su cumplimiento al cliente — que antes de esta versión era solo declarativo.
 
 El sistema se alinea conceptualmente, sin pretender conformidad ni certificación, con el API abierto **TMF641 (Service Ordering Management)** de TM Forum, la versión estandarizada de industria de este mismo proceso.
 
@@ -118,8 +122,8 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 
 - Facturación o cálculo de costos asociados a la orden.
 - Gestión de incidentes o tickets de soporte sobre un servicio ya activo (Assurance).
-- Integración con sistemas externos reales (CRM, inventario, agendamiento de visitas técnicas)  el Sistema Cliente se simula manualmente en este ejercicio.
-- Gestión de usuarios o permisos diferenciados por actor  toda la autenticación usa una única credencial compartida (Contrato Operativo, Sección 4).
+- Integración con sistemas CRM de mercado reales (ej. Salesforce, Huawei HPESA-CRM) o con inventario y agendamiento de visitas técnicas — existe una implementación de referencia propia (`crm-som`), de uso personal del docente en esta etapa, que ilustra el patrón de integración pero no es una integración con un producto comercial.
+- Gestión de usuarios o permisos individuales  la autenticación diferencia por canal (GUI, CRM) mediante dos credenciales fijas, pero no por usuario individual (Contrato Operativo, Sección 4).
 
 ### Dependencias
 
@@ -136,6 +140,7 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 | `Contrato_Datos_OrdenServicio_DuocUC.md` | Contrato de Datos (schema) del recurso Orden de Servicio |
 | `Contrato_Operativo_OrdenServicio_DuocUC.md` | Contrato Operativo y de Protocolo del API Orden de Servicio |
 | `som_api_demo.py` | Implementación de referencia del API |
+| `crm_som.py` | Implementación de referencia del Sistema Cliente (canal CRM) |
 | `Estandar_Documentacion_API_CUY6142.md` | Estándar de documentación aplicado a este conjunto de documentos (uso interno del docente) |
 | TM Forum  Business Process Framework (eTOM) | Marco de procesos de negocio de referencia de industria  tmforum.org |
 | TM Forum  TMF641 (Service Ordering Management) | API abierto de referencia para gestión de órdenes de servicio  tmforum.org |
@@ -146,7 +151,7 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 
 Un cambio que solo actualiza contexto de negocio, actores o casos de uso, sin afectar las Fichas de Contrato: cambio menor. Un cambio que requiere modificar el Contrato de Datos o el Contrato Operativo (ej. un nuevo actor con permisos distintos, o un nuevo escenario que necesita un endpoint nuevo): cambio mayor, coordinado con ambas fichas.
 
-Esta especificación documenta la versión **1.0** del sistema.
+Esta especificación documenta la versión **2.0** del sistema.
 
 ---
 
