@@ -10,6 +10,11 @@ RUN /opt/venv/bin/pip install -r requirements.txt
 
 FROM python:3.12-slim
 
+# curl se usa en el healthcheck definido en docker-compose.yml
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 RUN useradd --uid 1000 --create-home appuser
