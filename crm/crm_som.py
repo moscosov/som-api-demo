@@ -15,6 +15,15 @@ esa operacion queda reservada al canal GUI (Postman). Tambien recibe el
 webhook de cambio de estado y refresca su vista local cuando llega, sea cual
 sea el canal que origino el cambio.
 
+Autoregistro de webhook (uso exclusivo del entorno de trabajo propio -- no
+forma parte del material entregado a estudiantes): al arrancar, este
+servicio intenta registrarse a si mismo como receptor de notificaciones en
+som-api (POST /webhooks, Seccion 6.2 del Contrato Operativo), para no
+depender del paso manual "Registrar webhook" de la coleccion Postman. El
+Contrato Operativo no restringe ese endpoint por canal -- cualquier
+X-API-Key valida sirve -- por lo que usar la clave CRM ya presente en este
+archivo es valido. Ver autoregistrar_webhook() en la Seccion 7.
+
 CUY6142 - Telepresencia y Entornos Innovadores de Colaboracion Humana
 
 Dependencias: pip install flask requests
@@ -24,6 +33,8 @@ Acceso:       http://localhost:8082/         (interfaz web)
 """
 
 import os
+import threading
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -36,8 +47,17 @@ from flask import Flask, jsonify, request
 PORT = int(os.environ.get("PORT", 8082))
 LOG_FILE = "crm_som.log"
 
+# URL base de som-api. Dentro de la red Docker som-network se resuelve por
+# nombre de contenedor (som-api); fuera de ella (ejecucion local sin
+# Docker) se sobrescribe con la variable de entorno SOM_API_URL.
 SOM_API_URL = os.environ.get("SOM_API_URL", "http://som-api:8081/api/v1")
+
+# Clave del canal CRM -- Contrato Operativo, Seccion 4 (v1.3). Debe
+# coincidir con la clave que som-api tiene registrada para ese canal.
 SOM_API_KEY = os.environ.get("SOM_API_KEY", "DUOC-CUY6142-DEMO-CRM")
+
+# Secreto esperado en las notificaciones entrantes -- Contrato Operativo,
+# Seccion 6.6. Debe coincidir con el secreto configurado en som-api.
 WEBHOOK_SECRET_ESPERADO = os.environ.get(
     "WEBHOOK_SECRET", "DUOC-CUY6142-DEMO-WEBHOOK-SECRET"
 )
@@ -49,18 +69,49 @@ HEADERS_SOM_API = {
 
 SOM_API_TIMEOUT_SEGUNDOS = 5
 
+# URL propia con la que este servicio se autoregistra en som-api -- debe ser
+# alcanzable DESDE som-api, no desde el equipo del docente. Dentro de
+# som-network se resuelve por nombre de contenedor (default). Fuera de
+# Docker (ejecucion local, Escenario C de Validacion_Local_OrdenServicio.md)
+# se sobrescribe con la variable de entorno WEBHOOK_URL_PROPIA.
+WEBHOOK_URL_PROPIA = os.environ.get(
+    "WEBHOOK_URL_PROPIA", f"http://crm-som:{PORT}/webhooks/ordenes"
+)
+
+# Reintentos del autoregistro -- som-api puede no estar listo todavia cuando
+# arranca este proceso (docker compose solo garantiza orden de inicio de
+# contenedores, no que la app Flask ya este escuchando).
+WEBHOOK_AUTOREGISTRO_INTENTOS = int(os.environ.get("WEBHOOK_AUTOREGISTRO_INTENTOS", 10))
+WEBHOOK_AUTOREGISTRO_ESPERA_SEGUNDOS = int(
+    os.environ.get("WEBHOOK_AUTOREGISTRO_ESPERA_SEGUNDOS", 2)
+)
+
+# Dominios de valores del recurso -- Contrato de Datos, Seccion 3. Se
+# repiten aqui solo para poblar los `select` del formulario; la validacion
+# real la sigue haciendo som-api (Seccion 4 del Contrato de Datos).
 TIPOS_SERVICIO_VALIDOS = ["INTERNET", "TELEFONIA", "TV"]
 PRIORIDADES_VALIDAS = ["ALTA", "MEDIA", "BAJA"]
 
 # ---------------------------------------------------------------------------
-# 2. Estado local
+# 2. Estado local -- vista que el CRM mantiene en memoria, actualizada por
+#    las respuestas de sus propias llamadas y por los webhooks entrantes.
+#    No reemplaza a som-api como fuente de verdad: es una cache de lectura
+#    para la interfaz, reconciliable en cualquier momento contra GET
+#    /ordenes. Se pierde al reiniciar el proceso, mismo criterio de
+#    simplicidad que el estado en memoria de som-api.
 # ---------------------------------------------------------------------------
 
 ordenes_locales = {}
+
+# Historial de notificaciones de webhook recibidas -- no es parte del
+# Contrato Operativo (es estado interno de crm-som, no de som-api).
+# Alimenta el panel de la interfaz que muestra la respuesta asincrona
+# llegando sin que el usuario la solicite.
 eventos_webhook = []
 
 # ---------------------------------------------------------------------------
-# 3. Registro (logging)
+# 3. Registro (logging) -- mismo formato de linea que som_api_demo.py, para
+#    que las evidencias de ambos servicios sean comparables lado a lado.
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +130,12 @@ def ahora_iso():
 
 
 # ---------------------------------------------------------------------------
-# 4. Cliente REST
+# 4. Cliente REST -- llamadas hacia som-api, canal CRM. Cubre las cinco
+#    operaciones que son prerrogativa del CRM: crear, listar, consultar,
+#    editar (PUT) y cancelar (DELETE). PATCH queda deliberadamente fuera.
+#    som_api_registrar_webhook() es la excepcion: no es una operacion del
+#    canal CRM segun el Contrato Operativo (que no distingue canal para ese
+#    endpoint) -- se agrega aqui solo para el autoregistro (Seccion 7).
 # ---------------------------------------------------------------------------
 
 
@@ -125,7 +181,28 @@ def som_api_cancelar_orden(id_orden):
     )
 
 
+def som_api_registrar_webhook(url_propia):
+    return requests.post(
+        f"{SOM_API_URL}/webhooks",
+        json={"url": url_propia},
+        headers=HEADERS_SOM_API,
+        timeout=SOM_API_TIMEOUT_SEGUNDOS,
+    )
+
+
 def invocar_som_api(funcion, *args, **kwargs):
+    """Ejecuta una llamada al cliente REST de som-api, traduciendo un fallo
+    de conexion (som-api caido, inalcanzable, o timeout) en una respuesta
+    502 legible para la interfaz, en vez de una excepcion no controlada
+    que rompe la demo sin explicacion.
+
+    Devuelve (respuesta, None) si la llamada se completo -- con el codigo
+    HTTP que sea, incluido un error de som-api, que no es asunto de esta
+    funcion -- o (None, (cuerpo_json, 502)) si la llamada ni siquiera pudo
+    realizarse. Este 502 es una decision propia de crm-som, no forma parte
+    del Contrato Operativo (ese contrato define los codigos que devuelve
+    som-api, no los que genera un cliente suyo).
+    """
     try:
         return funcion(*args, **kwargs), None
     except requests.exceptions.RequestException as excepcion:
@@ -137,7 +214,12 @@ def invocar_som_api(funcion, *args, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# 5. Pagina HTML de la interfaz
+# 5. Pagina HTML de la interfaz -- autocontenida (CSS y JS inline, sin
+#    dependencias externas). No usa plantillas Jinja porque no hay datos
+#    que el servidor deba incrustar: la pagina carga todo su contenido via
+#    `fetch` a los mismos endpoints JSON de la Seccion 6, igual que lo
+#    haria Postman o `curl` -- la interfaz es un cliente mas de esos
+#    endpoints, no un camino distinto.
 # ---------------------------------------------------------------------------
 
 PAGINA_HTML = """<!DOCTYPE html>
@@ -488,7 +570,9 @@ setInterval(cargarEventos, 3000);
 """
 
 # ---------------------------------------------------------------------------
-# 6. App Flask y rutas
+# 6. App Flask y rutas -- endpoints propios del CRM. Los cinco endpoints de
+#    ordenes son proxy directo hacia som-api; la interfaz (Seccion 5) es
+#    solo otro cliente de estos mismos endpoints, via `fetch`.
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
@@ -501,10 +585,14 @@ def obtener_json_o_error():
     return datos, None
 
 
+# --- GET / -- interfaz web ---------------------------------------------------
+
 @app.route("/", methods=["GET"])
 def interfaz():
     return PAGINA_HTML
 
+
+# --- GET /estado -- estado basico del servicio (JSON) -----------------------
 
 @app.route("/estado", methods=["GET"])
 def estado():
@@ -515,6 +603,8 @@ def estado():
         "som_api_url": SOM_API_URL,
     }), 200
 
+
+# --- POST /ordenes -- crear (proxy hacia som-api) ---------------------------
 
 @app.route("/ordenes", methods=["POST"])
 def crear_orden():
@@ -534,6 +624,8 @@ def crear_orden():
     return jsonify(respuesta.json()), respuesta.status_code
 
 
+# --- GET /ordenes -- listar (proxy, refresca la cache local) ---------------
+
 @app.route("/ordenes", methods=["GET"])
 def listar_ordenes():
     respuesta, error = invocar_som_api(som_api_listar_ordenes)
@@ -547,6 +639,8 @@ def listar_ordenes():
     return jsonify(respuesta.json()), respuesta.status_code
 
 
+# --- GET /ordenes/<id_orden> -- detalle (proxy) -----------------------------
+
 @app.route("/ordenes/<id_orden>", methods=["GET"])
 def obtener_orden(id_orden):
     respuesta, error = invocar_som_api(som_api_obtener_orden, id_orden)
@@ -558,6 +652,8 @@ def obtener_orden(id_orden):
 
     return jsonify(respuesta.json()), respuesta.status_code
 
+
+# --- PUT /ordenes/<id_orden> -- editar (proxy) ------------------------------
 
 @app.route("/ordenes/<id_orden>", methods=["PUT"])
 def editar_orden(id_orden):
@@ -576,6 +672,8 @@ def editar_orden(id_orden):
     return jsonify(respuesta.json()), respuesta.status_code
 
 
+# --- DELETE /ordenes/<id_orden> -- cancelar (proxy) -------------------------
+
 @app.route("/ordenes/<id_orden>", methods=["DELETE"])
 def cancelar_orden(id_orden):
     respuesta, error = invocar_som_api(som_api_cancelar_orden, id_orden)
@@ -589,13 +687,22 @@ def cancelar_orden(id_orden):
     return jsonify(respuesta.json()), respuesta.status_code
 
 
+# --- GET /eventos -- historial de notificaciones de webhook recibidas ------
+
 @app.route("/eventos", methods=["GET"])
 def listar_eventos():
     return jsonify(eventos_webhook), 200
 
 
+# --- POST /webhooks/ordenes -- receptor del webhook -------------------------
+
 @app.route("/webhooks/ordenes", methods=["POST"])
 def recibir_webhook():
+    """Receptor de las notificaciones asincronas de som-api -- Contrato
+    Operativo, Seccion 6. Valida el secreto compartido antes de procesar
+    el cuerpo (Seccion 6.6), mismo criterio que som-api aplica con
+    X-API-Key en sus propios endpoints (Seccion 4).
+    """
     secreto_recibido = request.headers.get("X-Webhook-Secret")
     if secreto_recibido != WEBHOOK_SECRET_ESPERADO:
         registrar("WEBHOOK_RECHAZADO", "X-Webhook-Secret ausente o incorrecto")
@@ -623,6 +730,13 @@ def recibir_webhook():
         "fecha_recepcion": ahora_iso(),
     })
 
+    # El payload del webhook es liviano por diseno (Contrato Operativo,
+    # Seccion 6.5): no trae la representacion completa de la orden. En vez
+    # de confiar en el estado_nuevo del evento para pintar la vista local,
+    # se confirma con un GET a som-api -- coherente con el patron que el
+    # propio contrato describe para el receptor. Si som-api no responde en
+    # este instante, el webhook igual se registra (arriba) y se reconoce
+    # con 200 -- solo se omite la actualizacion de la cache local.
     if orden_id:
         respuesta, error = invocar_som_api(som_api_obtener_orden, orden_id)
         if error is None and respuesta.status_code == 200:
@@ -631,10 +745,73 @@ def recibir_webhook():
     return jsonify({"recibido": True}), 200
 
 
+# ---------------------------------------------------------------------------
+# 7. Autoregistro del webhook -- uso exclusivo del entorno de trabajo
+#    propio. No es parte del Contrato Operativo ni del material entregado a
+#    estudiantes (Guia Rapida / coleccion Postman), que siguen documentando
+#    el registro manual via POST /webhooks (canal GUI) como el flujo de
+#    referencia para la clase.
+# ---------------------------------------------------------------------------
+
+
+def autoregistrar_webhook():
+    """Registra crm-som como receptor de notificaciones en som-api al
+    arrancar (POST /webhooks, Contrato Operativo Seccion 6.2), para no
+    depender del paso manual de la coleccion Postman en este entorno.
+
+    El endpoint no distingue canal -- cualquier X-API-Key valida sirve --
+    por lo que usar la clave CRM ya configurada en este archivo (Seccion 1)
+    es valido segun el propio contrato (ver ejemplo de su Seccion 6.2, que
+    usa esa misma clave).
+
+    Corre en un hilo separado (ver Seccion 8, arranque) para no retrasar la
+    disponibilidad de la interfaz web mientras reintenta: docker compose
+    solo garantiza el orden de inicio de los contenedores, no que la app de
+    som-api ya este escuchando. Si se agotan los intentos, se registra el
+    fallo en el log y queda disponible el registro manual (POST /webhooks)
+    como respaldo -- no es distinto de un fallo del paso manual.
+    """
+    for intento in range(1, WEBHOOK_AUTOREGISTRO_INTENTOS + 1):
+        try:
+            respuesta = som_api_registrar_webhook(WEBHOOK_URL_PROPIA)
+        except requests.exceptions.RequestException as excepcion:
+            registrar(
+                "WEBHOOK_AUTOREGISTRO_REINTENTO",
+                f"intento={intento}/{WEBHOOK_AUTOREGISTRO_INTENTOS} | som-api inalcanzable: {excepcion}",
+            )
+        else:
+            if respuesta.status_code == 201:
+                registrar("WEBHOOK_AUTOREGISTRADO", f"url={WEBHOOK_URL_PROPIA}")
+                return
+            registrar(
+                "WEBHOOK_AUTOREGISTRO_REINTENTO",
+                f"intento={intento}/{WEBHOOK_AUTOREGISTRO_INTENTOS} | som-api respondio {respuesta.status_code}",
+            )
+        time.sleep(WEBHOOK_AUTOREGISTRO_ESPERA_SEGUNDOS)
+
+    registrar(
+        "WEBHOOK_AUTOREGISTRO_FALLIDO",
+        f"agotados {WEBHOOK_AUTOREGISTRO_INTENTOS} intentos -- "
+        f"registrar manualmente con POST {SOM_API_URL}/webhooks",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 8. Arranque -- threaded=True: crm-som puede recibir el webhook entrante
+#    mientras tiene una llamada saliente en curso hacia som-api (por
+#    ejemplo, un DELETE esperando respuesta), y mientras atiende la propia
+#    interfaz web en paralelo. Sin esto, el servidor de desarrollo de
+#    Flask atiende una solicitud a la vez y quedarian en interbloqueo --
+#    ver la nota de diseno del webhook en el Contrato Operativo, Seccion
+#    6.4. El autoregistro (Seccion 7) corre en su propio hilo daemon para
+#    no retrasar app.run() mientras reintenta.
+# ---------------------------------------------------------------------------
+
 if __name__ == "__main__":
     print(f"crm-som escuchando en el puerto {PORT}")
     print(f"Interfaz web:   http://localhost:{PORT}/")
     print(f"Estado (JSON):  http://localhost:{PORT}/estado")
     print(f"som-api configurada en: {SOM_API_URL}")
     print(f"Log de eventos: {LOG_FILE}")
+    threading.Thread(target=autoregistrar_webhook, daemon=True).start()
     app.run(host="0.0.0.0", port=PORT, threaded=True)
