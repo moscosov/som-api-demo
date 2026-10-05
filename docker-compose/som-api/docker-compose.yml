@@ -15,7 +15,7 @@ name: som-api
 
 services:
   som-api:
-    image: moscosov/som-api-demo:v2
+    image: moscosov/som-api-demo:v2.0
     container_name: som-api
     ports:
       - "8081:8081"
