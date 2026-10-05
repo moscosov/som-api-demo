@@ -1,0 +1,33 @@
+# SOM API Demo v2 -- CUY6142 Duoc UC
+#
+# Levanta el servicio SOM (Service Order Management) en el puerto 8081.
+# Los datos (ordenes, suscripciones y correlativos) se guardan en el
+# volumen som-data y sobreviven a docker compose down / up.
+#
+# Uso, desde esta carpeta:
+#   docker compose up -d      levanta el servicio en segundo plano
+#   docker compose ps         estado del servicio (debe indicar "healthy")
+#   docker compose logs -f    registro del servicio en tiempo real
+#   docker compose down       detiene el servicio y conserva los datos
+#   docker compose down -v    detiene el servicio y BORRA los datos
+
+name: som-api
+
+services:
+  som-api:
+    image: moscosov/som-api-demo:v2
+    container_name: som-api
+    ports:
+      - "8081:8081"
+    volumes:
+      - som-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/v2/openapi.json', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  som-data:
