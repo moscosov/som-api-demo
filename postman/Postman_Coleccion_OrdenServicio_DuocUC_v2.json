@@ -1,0 +1,1189 @@
+{
+  "info": {
+    "name": "CUY6142 - Orden de Servicio v2 (API Demo eTOM/SOM)",
+    "description": "Colección Postman del API demo de Orden de Servicio, versión 2.0 (ruta base /api/v2).\n\nUso:\n1. Editar la variable de colección 'host' (pestaña Variables de la colección): IP pública de la instancia y puerto, por ejemplo 54.10.20.30:8081, o localhost:8081.\n2. Ejecutar '0. Autenticación > Login': guarda el token en la variable 'token'. La colección envía ese token en el header X-API-KEY (pestaña Authorization de la colección, tipo API Key).\n3. Ejecutar las carpetas en orden. Cada request de creación guarda el id de la orden y, en el ALTA, el subscription_id, para que los requests siguientes los usen.\n\nLos com_id se generan al azar en cada ejecución (pestaña Pre-request), para que la colección pueda repetirse sin errores COM_ID_DUPLICADO. Cada request incluye un test del código de estado esperado (pestaña Tests). El token se pierde al reiniciar el servicio: si un request responde 401, repetir el Login.\n\nDocumentos asociados: Contrato_Operativo_OrdenServicio_DuocUC.md (2.0), GuiaRapida_OrdenServicio_DuocUC.md (2.0).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-KEY",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{token}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "host",
+      "value": "localhost:8081",
+      "description": "IP pública de la instancia AWS y puerto (ej. 54.10.20.30:8081), localhost:8081, o la IP que anuncia el docente"
+    },
+    {
+      "key": "usuario",
+      "value": "gui",
+      "description": "Usuario del login (canal GUI)"
+    },
+    {
+      "key": "password",
+      "value": "Cuy6142!",
+      "description": "Contraseña del login"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "Lo completa el request Login"
+    },
+    {
+      "key": "cliente_id",
+      "value": "CL-10457",
+      "description": "Cliente de las órdenes; en las actividades, el RUT del estudiante sin puntos ni guion"
+    },
+    {
+      "key": "com_alta",
+      "value": ""
+    },
+    {
+      "key": "com_reloc",
+      "value": ""
+    },
+    {
+      "key": "com_cambio",
+      "value": ""
+    },
+    {
+      "key": "com_baja",
+      "value": ""
+    },
+    {
+      "key": "id_alta",
+      "value": "",
+      "description": "Lo completa 'Crear ALTA'"
+    },
+    {
+      "key": "subscription_id",
+      "value": "",
+      "description": "Lo completa 'Crear ALTA'"
+    },
+    {
+      "key": "id_reloc",
+      "value": "",
+      "description": "Lo completa 'Crear RELOCALIZACION'"
+    },
+    {
+      "key": "id_cambio",
+      "value": "",
+      "description": "Lo completa 'Crear CAMBIO_OFERTA'"
+    },
+    {
+      "key": "id_baja",
+      "value": "",
+      "description": "Lo completa 'Crear BAJA'"
+    },
+    {
+      "key": "webhook_url",
+      "value": "http://crm-som:8082/webhooks/ordenes",
+      "description": "URL del receptor de notificaciones (crm-som en la red Docker som-network)"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Autenticación",
+      "item": [
+        {
+          "name": "Login (loginViaBasic)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/loginViaBasic",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "loginViaBasic"
+              ]
+            },
+            "description": "Autenticación básica con {{usuario}} y {{password}} (pestaña Authorization, tipo Basic Auth). Respuesta esperada: 200 con {\"token\": \"gui|...\"}. El test guarda el token en la variable 'token'. Contrato Operativo, Sección 4.2.",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{usuario}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Ofertas",
+      "item": [
+        {
+          "name": "Buscar ofertas (q, limit)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ofertas?q=fibra&limit=1",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ofertas"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "fibra"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Respuesta esperada: 200 con un arreglo de a lo más una oferta cuyo nombre contiene 'fibra'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ofertas de TV (credencial en la URL)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ofertas?tipo_servicio=TV&key={{token}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ofertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo_servicio",
+                  "value": "TV"
+                },
+                {
+                  "key": "key",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "description": "Misma consulta con la credencial en el parámetro 'key' en vez del header (Contrato Operativo, Sección 4.1). Este request no usa la autorización de la colección. Respuesta esperada: 200 con las tres ofertas de TV.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Tres ofertas de TV\", function () { pm.expect(pm.response.json().length).to.eql(3); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar oferta",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ofertas/200102",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ofertas",
+                "200102"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con la oferta 200102 (Fibra 600 Mbps)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Órdenes",
+      "item": [
+        {
+          "name": "Crear ALTA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ]
+            },
+            "description": "Respuesta esperada: 201 con la orden en RECIBIDA y el subscription_id de la nueva suscripción. El test guarda 'id_alta' y 'subscription_id'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_orden\": \"ALTA\",\n  \"com_id\": \"{{com_alta}}\",\n  \"cliente_id\": \"{{cliente_id}}\",\n  \"tipo_servicio\": \"INTERNET\",\n  \"offer_id\": \"200102\",\n  \"descripcion\": \"Alta de Fibra 600 Mbps residencial\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// com_id de 7 digitos, distinto en cada ejecucion para poder repetir la coleccion",
+                  "pm.collectionVariables.set(\"com_alta\", String(Math.floor(1000000 + Math.random() * 9000000)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"id_alta\", pm.response.json().id);",
+                  "pm.collectionVariables.set(\"subscription_id\", pm.response.json().subscription_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ALTA a EN_PROGRESO",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_alta}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_alta}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con \"estado\": \"EN_PROGRESO\".",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"EN_PROGRESO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ALTA a COMPLETADA",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_alta}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_alta}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con \"estado\": \"COMPLETADA\". La suscripción pasa a ACTIVA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"COMPLETADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear RELOCALIZACION",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ]
+            },
+            "description": "Requiere la suscripción ACTIVA. Respuesta esperada: 201 con \"distancia_m\": 6.375 y \"duracion_estimada_ms\": 2265000. El test guarda 'id_reloc'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_orden\": \"RELOCALIZACION\",\n  \"com_id\": \"{{com_reloc}}\",\n  \"cliente_id\": \"{{cliente_id}}\",\n  \"subscription_id\": \"{{subscription_id}}\",\n  \"punto_actual\": {\n    \"x\": 2.5,\n    \"y\": 1.75,\n    \"referencia\": \"Living\"\n  },\n  \"punto_destino\": {\n    \"x\": 6.125,\n    \"y\": 4.5,\n    \"referencia\": \"Dormitorio 2\"\n  },\n  \"descripcion\": \"Traslado del router al dormitorio\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// com_id de 7 digitos, distinto en cada ejecucion para poder repetir la coleccion",
+                  "pm.collectionVariables.set(\"com_reloc\", String(Math.floor(1000000 + Math.random() * 9000000)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"id_reloc\", pm.response.json().id);",
+                  "pm.test(\"Distancia 6.375 m\", function () { pm.expect(pm.response.json().distancia_m).to.eql(6.375); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Trazabilidad de la RELOCALIZACION (español)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_reloc}}/trazabilidad?idioma=es",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_reloc}}",
+                "trazabilidad"
+              ],
+              "query": [
+                {
+                  "key": "idioma",
+                  "value": "es"
+                }
+              ]
+            },
+            "description": "Respuesta esperada: 200 con historial y trabajo.pasos en español. Sin el parámetro idioma, los textos vienen en inglés."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Cuatro pasos\", function () { pm.expect(pm.response.json().trabajo.pasos.length).to.eql(4); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actualizar solo la descripción (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_reloc}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_reloc}}"
+              ]
+            },
+            "description": "Actualización parcial: solo cambia la descripción; el estado no cambia y no se dispara webhook. Respuesta esperada: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descripcion\": \"Cliente solicita visita en horario AM\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reemplazar campos editables (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_reloc}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_reloc}}"
+              ]
+            },
+            "description": "Reemplazo completo: prioridad y descripcion son obligatorios. Respuesta esperada: 200 con \"prioridad\": \"ALTA\".",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prioridad\": \"ALTA\",\n  \"descripcion\": \"Cliente solicita visita en horario AM\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RELOCALIZACION a EN_PROGRESO",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_reloc}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_reloc}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200. Si otra orden de la suscripción está EN_PROGRESO, responde 409 ORDEN_EN_CURSO.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"EN_PROGRESO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RELOCALIZACION a COMPLETADA",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_reloc}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_reloc}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con \"estado\": \"COMPLETADA\".",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"COMPLETADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear CAMBIO_OFERTA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ]
+            },
+            "description": "La oferta nueva debe ser del mismo servicio y distinta de la vigente. Respuesta esperada: 201. El test guarda 'id_cambio'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_orden\": \"CAMBIO_OFERTA\",\n  \"com_id\": \"{{com_cambio}}\",\n  \"cliente_id\": \"{{cliente_id}}\",\n  \"subscription_id\": \"{{subscription_id}}\",\n  \"offer_id\": \"200103\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// com_id de 7 digitos, distinto en cada ejecucion para poder repetir la coleccion",
+                  "pm.collectionVariables.set(\"com_cambio\", String(Math.floor(1000000 + Math.random() * 9000000)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"id_cambio\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear BAJA",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ]
+            },
+            "description": "Respuesta esperada: 201 con la orden en RECIBIDA. El test guarda 'id_baja'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo_orden\": \"BAJA\",\n  \"com_id\": \"{{com_baja}}\",\n  \"cliente_id\": \"{{cliente_id}}\",\n  \"subscription_id\": \"{{subscription_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// com_id de 7 digitos, distinto en cada ejecucion para poder repetir la coleccion",
+                  "pm.collectionVariables.set(\"com_baja\", String(Math.floor(1000000 + Math.random() * 9000000)));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set(\"id_baja\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar orden con la oferta expandida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_alta}}?includeOferta=true",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_alta}}"
+              ],
+              "query": [
+                {
+                  "key": "includeOferta",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Respuesta esperada: 200 con la representación completa del ALTA y el campo 'oferta'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Incluye oferta\", function () { pm.expect(pm.response.json().oferta.offer_id).to.eql(\"200102\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar órdenes (orden, paginación, oferta)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes?sortBy=subscription_id&order=asc&includeOferta=true&page=1&size=20",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ],
+              "query": [
+                {
+                  "key": "sortBy",
+                  "value": "subscription_id"
+                },
+                {
+                  "key": "order",
+                  "value": "asc"
+                },
+                {
+                  "key": "includeOferta",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Respuesta esperada: 200 con una página de órdenes ordenadas por subscription_id. El header de respuesta X-Total-Count indica el total (pestaña Headers de la respuesta)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Header X-Total-Count\", function () { pm.response.to.have.header(\"X-Total-Count\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar órdenes pendientes (filtro multivalor)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes?estado=RECIBIDA&estado=EN_PROGRESO",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "RECIBIDA"
+                },
+                {
+                  "key": "estado",
+                  "value": "EN_PROGRESO"
+                }
+              ]
+            },
+            "description": "El parámetro estado se repite para indicar varios valores. Respuesta esperada: 200 con las órdenes en RECIBIDA o EN_PROGRESO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelar la BAJA (DELETE)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/ordenes/{{id_baja}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "ordenes",
+                "{{id_baja}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con \"estado\": \"CANCELADA\". Si hay un webhook registrado, la respuesta incluye además \"notificacion_webhook\": \"pendiente\"."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Suscripciones",
+      "item": [
+        {
+          "name": "Listar suscripciones activas del cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/suscripciones?cliente_id={{cliente_id}}&estado=ACTIVA",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "suscripciones"
+              ],
+              "query": [
+                {
+                  "key": "cliente_id",
+                  "value": "{{cliente_id}}"
+                },
+                {
+                  "key": "estado",
+                  "value": "ACTIVA"
+                }
+              ]
+            },
+            "description": "Respuesta esperada: 200 con las suscripciones ACTIVA del cliente y el header X-Total-Count."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar suscripción",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/suscripciones/{{subscription_id}}",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "suscripciones",
+                "{{subscription_id}}"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con la suscripción, su oferta vigente y su estado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Webhooks",
+      "item": [
+        {
+          "name": "Registrar webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "http://{{host}}/api/v2/webhooks",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "webhooks"
+              ]
+            },
+            "description": "Respuesta esperada: 201. Registrar un webhook reemplaza al anterior (Contrato Operativo, Sección 6.2).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"{{webhook_url}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 201\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar webhooks fallidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/webhooks/fallos",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "webhooks",
+                "fallos"
+              ]
+            },
+            "description": "Respuesta esperada: 200 con la lista de entregas fallidas, vacía si no hay ninguna (Sección 6.7)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Documentación",
+      "item": [
+        {
+          "name": "Especificación OpenAPI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{host}}/api/v2/openapi.json",
+              "protocol": "http",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "openapi.json"
+              ]
+            },
+            "description": "No requiere credencial. Respuesta esperada: 200 con la especificación OpenAPI 3.0. La página navegable está en http://{{host}}/api/v2/docs (abrir en el navegador).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Codigo 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
