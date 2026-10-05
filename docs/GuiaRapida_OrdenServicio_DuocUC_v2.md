@@ -11,7 +11,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Guía Rápida — Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 2.0 |
+| Versión | 2.1 |
 | Fecha | 05/10/2026 |
 | Documento asociado | `Contrato_Operativo_OrdenServicio_DuocUC.md` (2.0) |
 
@@ -22,6 +22,7 @@
 | 1.0 | 15/09/2026 | Pablo Moscoso | Versión inicial |
 | 1.1 | 21/09/2026 | Pablo Moscoso | Alineado con Contrato Operativo v1.3. Sección 2: aclarada la existencia de la segunda clave (canal CRM). Sección 4: agregados los comandos `POST /webhooks` y `GET /webhooks/fallos`; notas sobre el campo `notificacion_webhook` en las respuestas de `PATCH` y `DELETE` |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Alineado con Contrato Operativo 2.0 (ruta base `/api/v2`). Sección 2: login con usuario y contraseña, token de sesión y variables de shell. Sección 3: flujo de alta y relocalización. Sección 4: comandos de login, ofertas, los cuatro tipos de orden, listado con filtros y paginación, actualización parcial, trazabilidad, suscripciones y documentación navegable. Respuestas esperadas obtenidas de una ejecución real del servicio 2.0 |
+| 2.1 | 05/10/2026 | Pablo Moscoso | Alineado con Contrato Operativo 2.1. Sección 4, documentación navegable: contenido de la especificación y diferencia entre la revisión de formatos de Swagger UI y la del servicio |
 
 ---
 
@@ -395,6 +396,8 @@ http://<HOST>:8081/api/v2/docs
 
 Respuesta esperada: la página Swagger UI con todos los endpoints. La especificación en JSON está en `http://<HOST>:8081/api/v2/openapi.json`.
 
+La especificación describe cada campo, el formato de los identificadores (`com_id` 7 dígitos, `offer_id` 6, `subscription_id` 8), los valores por defecto y el catálogo de ofertas (Contrato Operativo, Sección 5.4). Swagger UI revisa el formato de los parámetros de ruta y de los filtros antes de enviar; `curl` no lo hace, y el servicio responde `404` (ruta) o una lista vacía (filtro).
+
 ---
 
 ## 5. Control de Versiones
@@ -404,6 +407,7 @@ Respuesta esperada: la página Swagger UI con todos los endpoints. La especifica
 | 1.0 | 15/09/2026 | Pablo Moscoso | Versión inicial |
 | 1.1 | 21/09/2026 | Pablo Moscoso | Ver Gestión de Versiones, Sección 1 |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Ver Gestión de Versiones, Sección 1 |
+| 2.1 | 05/10/2026 | Pablo Moscoso | Ver Gestión de Versiones, Sección 1 |
 
 ---
 

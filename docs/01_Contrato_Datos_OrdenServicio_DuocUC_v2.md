@@ -16,7 +16,7 @@
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2 — Fundamentos y Consumo de APIs (2.3 / 2.4); base de la actividad formativa 2.4.2 |
-| Documento asociado | Contrato Operativo y de Protocolo — Orden de Servicio (versión 2.0) |
+| Documento asociado | Contrato Operativo y de Protocolo — Orden de Servicio (versión 2.1) |
 
 ### Gestión de Versiones
 

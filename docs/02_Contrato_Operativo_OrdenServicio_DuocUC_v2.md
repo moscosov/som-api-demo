@@ -11,7 +11,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Contrato Operativo y de Protocolo — Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 2.0 |
+| Versión | 2.1 |
 | Fecha | 05/10/2026 |
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
@@ -27,6 +27,7 @@
 | 1.2 | 14/09/2026 | Pablo Moscoso | Agregado método `PUT /ordenes/{id}` (reemplazo completo de campos editables) a la Sección 5, con nota explicativa de la diferencia con `PATCH`; actualizadas Secciones 7 (códigos de estado) y 8 (idempotencia) en consecuencia |
 | 1.3 | 17/09/2026 | Pablo Moscoso | Sección 4 rediseñada: autenticación por mapa de dos claves por canal (`GUI`, `CRM`). Agregada Sección 6, Webhooks. Agregados endpoints `POST /webhooks` y `GET /webhooks/fallos`. Renumeradas Secciones 6 a 11 → 7 a 12 |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Cambio mayor, ruta base `/api/v2`. Sección 3: perfil de instancia AWS del estudiante y persistencia en volumen. Sección 4: login con autenticación básica (`loginViaBasic`) y tokens de sesión; credencial por header `X-API-KEY` o parámetro `key`. Sección 5: endpoints de trazabilidad, suscripciones y ofertas; parámetros de consulta (filtros, `sortBy`, `order`, `page`, `size`, `includeOferta`, `idioma`, `q`, `limit`); `PATCH` ampliado a `descripcion`; documentación navegable OpenAPI/Swagger. Sección 6: payload del webhook con `tipo_orden`, `com_id` y `subscription_id`. Sección 8: correspondencia entre reglas del Contrato de Datos (RV, RN) y códigos HTTP. Sección 9: serialización de la ejecución y `com_id` como clave de idempotencia. Sección 10: persistencia sale de las exclusiones |
+| 2.1 | 05/10/2026 | Pablo Moscoso | Sección 5.4: contenido de la especificación OpenAPI (descripciones de cada campo, formatos de los identificadores, valores por defecto, campos de solo lectura y catálogo de ofertas) y diferencia entre la revisión de formatos de Swagger UI y la de la API. Sin cambios en endpoints, reglas ni códigos de estado |
 
 ---
 
@@ -154,7 +155,7 @@ Un parámetro desconocido se ignora. Un parámetro conocido con un valor inváli
 | --- | --- | --- | --- |
 | `cliente_id`, `subscription_id`, `com_id`, `tipo_servicio`, `tipo_orden` | Valor exacto del campo | Sin filtro | Filtra por igualdad |
 | `estado` | Uno o más estados de orden; se repite el parámetro para indicar varios (`estado=RECIBIDA&estado=EN_PROGRESO`) | Sin filtro | Devuelve las órdenes en cualquiera de los estados indicados |
-| `sortBy` | `fecha_creacion`, `com_id`, `cliente_id`, `subscription_id`, `tipo_orden`, `tipo_servicio`, `estado`, `prioridad` | `fecha_creacion` | Campo de ordenamiento. Empates: por `fecha_creacion` y luego por `id` |
+| `sortBy` | `fecha_creacion`, `com_id`, `cliente_id`, `subscription_id`, `tipo_orden`, `tipo_servicio`, `estado`, `prioridad` | `fecha_creacion` | Campo de ordenamiento. Los empates conservan el orden de creación |
 | `order` | `asc`, `desc` | `asc` | Sentido del ordenamiento |
 | `page` | Entero mayor o igual a 1 | `1` | Página solicitada. Una página posterior a la última devuelve un arreglo vacío |
 | `size` | Entero entre 1 y 100 | `20` | Cantidad de órdenes por página |
@@ -210,6 +211,18 @@ Ordenamiento fijo por `offer_id` ascendente.
 | `/api/v2/openapi.json` | Especificación OpenAPI 3.0 del servicio, en formato JSON |
 
 Ninguna de las dos rutas exige autenticación. La interfaz Swagger UI se carga desde una red de distribución de contenido pública: el navegador que la abre necesita acceso a internet.
+
+**Contenido de la especificación.** La especificación OpenAPI documenta, además de rutas, métodos y respuestas:
+
+- La descripción de cada campo, tomada del Contrato de Datos, Sección 3, con las reglas RV y RN que le aplican y el código de error de cada una.
+- El formato de los identificadores: `com_id` de 7 dígitos, `offer_id` de 6 y `subscription_id` de 8 (patrón), `id` como UUID y las fechas como fecha y hora ISO 8601.
+- Los valores por defecto de la creación: `tipo_orden` `ALTA`, `prioridad` `MEDIA` y `descripcion` vacía.
+- Los campos de solo lectura, generados o calculados por el servicio.
+- El catálogo de ofertas vigente, como texto en la descripción de `offer_id`. No se declara como lista cerrada de valores: una oferta inexistente debe responder `404` (`OFERTA_NO_ENCONTRADA`, RN-02) y no `422`.
+
+Los schemas de las solicitudes son los mismos con que el servicio valida (Diseño Funcional, Sección 5), por lo que la documentación y la validación no pueden diferir.
+
+**Revisión de formatos en Swagger UI.** La especificación declara el patrón de los parámetros de ruta (`subscription_id`, `offer_id`, `id`) y de los filtros `com_id` y `subscription_id`. Swagger UI revisa esos patrones antes de enviar la solicitud y, si un valor no cumple, no la envía y muestra un aviso. El servicio no valida el formato de esos parámetros: desde cualquier otro cliente (Postman, `curl`, Python), un valor de ruta con otro formato responde `404` y un filtro con otro formato responde `200` con una lista vacía.
 
 ### 5.5 Ejemplos de uso
 

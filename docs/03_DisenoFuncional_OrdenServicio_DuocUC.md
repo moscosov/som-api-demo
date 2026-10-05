@@ -11,7 +11,7 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Diseño Funcional — Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 2.0 |
+| Versión | 2.1 |
 | Fecha | 05/10/2026 |
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
@@ -36,6 +36,7 @@
 | 1.1 | 16/09/2026 | Pablo Moscoso | Sección 5: se agregan dos decisiones de diseño (contenerización con Docker; `ENV PYTHONUNBUFFERED=1`), derivadas del ejercicio de contenerización realizado en paralelo al despliegue en `venv` |
 | 1.2 | 21/09/2026 | Pablo Moscoso | Alineado con Contrato Operativo v1.3 (webhooks, autenticación por canal). Sección 3: diagrama actualizado con el disparo de webhook no bloqueante. Sección 4: paso de disparo de webhook en `PATCH`/`DELETE`; nuevas subsecciones `POST /webhooks` y `GET /webhooks/fallos`. Sección 5: tres decisiones de diseño nuevas (canal derivado de la clave, entrega no bloqueante con `threading`, conciliación sin reintentos vía `GET /webhooks/fallos`). Sección 6: referencia corregida (Contrato Operativo Sección 7 → 8). Sección 7: restricción de autenticación actualizada; agregado el razonamiento de las tres exclusiones de webhook; referencia corregida (Contrato Operativo Sección 9 → 10) |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Alineado con Contrato de Datos 2.0 y Contrato Operativo 2.0. Sección 3: arquitectura con login y tokens, candado global, persistencia en archivo, cálculo de relocalización y documentación OpenAPI. Sección 4: modelo del proceso reescrito, con el orden de evaluación de las reglas RV y RN por operación, arranque del servicio, login, trazabilidad, suscripciones y ofertas. Sección 5: doce decisiones de diseño nuevas y una reemplazada (almacenamiento). Sección 6: mensajes de error de schema. Sección 7: restricciones actualizadas (persistencia incluida, proceso único obligatorio) |
+| 2.1 | 05/10/2026 | Pablo Moscoso | Alineado con Contrato Operativo 2.1. Sección 5: tres decisiones de diseño nuevas sobre el contenido de la especificación OpenAPI (anotaciones en los mismos schemas de validación, catálogo de ofertas como texto y patrones de parámetros solo documentados). Sin cambios en el proceso ni en las reglas |
 
 ---
 
@@ -149,7 +150,7 @@ El criterio del orden es: identidad de la orden, existencia de lo referenciado, 
 2. Se validan los parámetros de consulta (Contrato Operativo, Sección 5.2). El primer valor inválido produce `400` (`PARAMETRO_INVALIDO`).
 3. [Candado] para tomar una copia de las órdenes; se libera de inmediato.
 4. Se aplican los filtros: igualdad por campo; `estado` acepta varios valores y la orden debe estar en cualquiera de ellos.
-5. Se ordena por `sortBy` y `order`; los empates se resuelven por `fecha_creacion` y luego por `id`, para que el resultado sea siempre el mismo.
+5. Se ordena por `sortBy` y `order` con un ordenamiento estable: los empates conservan el orden de creación, también en orden descendente, para que el resultado sea siempre el mismo. `fecha_creacion` tiene resolución de segundos, por lo que órdenes creadas en el mismo segundo empatan y quedan en el orden en que se crearon.
 6. Se cuenta el total filtrado y se extrae la página solicitada.
 7. Si `includeOferta=true`, se agrega a cada orden el campo `oferta` desde el catálogo.
 8. Se responde `200` con el arreglo y el header `X-Total-Count`.
@@ -157,8 +158,8 @@ El criterio del orden es: identidad de la orden, existencia de lo referenciado, 
 ### 4.6 Consultar Orden (`GET /ordenes/{id}`)
 
 1. [Autenticación].
-2. Se valida `includeOferta` (`400` si es inválido).
-3. Se busca la orden por `id`. Si no existe, `404` (`ORDEN_NO_ENCONTRADA`).
+2. Se busca la orden por `id`. Si no existe, `404` (`ORDEN_NO_ENCONTRADA`).
+3. Se valida `includeOferta` (`400` si es inválido).
 4. Se responde `200` con la representación completa, expandida si corresponde.
 
 ### 4.7 Reemplazar Orden (`PUT /ordenes/{id}`)
@@ -207,8 +208,8 @@ El criterio del orden es: identidad de la orden, existencia de lo referenciado, 
 ### 4.10 Consultar Trazabilidad (`GET /ordenes/{id}/trazabilidad`)
 
 1. [Autenticación].
-2. Se valida `idioma` (`400` si no es `es` ni `en`; `en` si se omite).
-3. Se busca la orden por `id`. Si no existe, `404`.
+2. Se busca la orden por `id`. Si no existe, `404`.
+3. Se valida `idioma` (`400` si no es `es` ni `en`; `en` si se omite).
 4. Se construye `historial` desde el historial interno de la orden.
 5. Si la orden es `RELOCALIZACION`, se construye `trabajo` llamando al cálculo de relocalización (Sección 4.14) con los puntos almacenados y el idioma solicitado. En los demás tipos, `trabajo` es `null`.
 6. Se responde `200`.
@@ -272,6 +273,9 @@ En la creación se guardan los totales en la orden. En la consulta de trazabilid
 | Pasos de trabajo regenerados en cada consulta; totales guardados en la creación | Guardar los pasos en cada idioma | Los textos dependen del idioma solicitado; regenerarlos con una función determinista evita duplicar datos y mantiene una sola fuente para el cálculo. |
 | Aritmética decimal con redondeo de mitades hacia arriba | `float` con `round()` de Python | `round()` usa redondeo bancario y opera sobre la representación binaria del `float`, lo que produce resultados que no coinciden con el cálculo manual del estudiante (por ejemplo, en valores terminados en 5). |
 | Especificación OpenAPI escrita a mano en el código, con Swagger UI cargado desde una red de distribución pública | Generación automática (flasgger, apispec); Swagger UI empaquetado en la imagen | Mismo criterio que la elección de Flask: el contrato se escribe explícitamente. Cargar Swagger UI desde internet mantiene la imagen pequeña; quien la necesita es el navegador del estudiante, que ya tiene acceso. |
+| Descripciones, valores por defecto y títulos agregados en los mismos schemas `jsonschema` con que se valida | Schemas separados para la documentación | Una sola fuente para la documentación y la validación. `jsonschema` ignora esas claves al validar, así que agregarlas no cambia el comportamiento. Los schemas de respuesta, que no se validan, agregan además formatos (`uuid`, `date-time`) y la marca de solo lectura. |
+| Catálogo de ofertas como texto en la descripción de `offer_id` | Lista cerrada de valores (`enum`) en el schema | Con `enum`, una oferta inexistente fallaría en la capa de schema (`422`) y no en la de negocio (`404 OFERTA_NO_ENCONTRADA`, RN-02), lo que contradice el Contrato Operativo, Sección 8.2. |
+| Patrones de los parámetros de ruta y de los filtros declarados solo en la especificación | Validar también su formato en el servicio | Validarlos en el servicio cambiaría respuestas ya definidas (`404` en la ruta, lista vacía en el filtro). En la especificación sirven para que Swagger UI avise al estudiante antes de enviar. La diferencia se documenta en el Contrato Operativo, Sección 5.4. |
 | Autenticación por decorator, aplicado a cada ruta | Verificación repetida en cada función de ruta | Hace visible, en una sola línea por endpoint, que la autenticación ocurre antes de la lógica de negocio. |
 | Registro dual (consola + archivo) | Solo consola | La consola deja visible lo que ocurre en tiempo real; el archivo conserva un historial para revisión posterior. |
 | Un único archivo (`som_api_demo.py`) | Módulos separados | Un solo archivo bien seccionado se recorre de principio a fin en una demo, sin saltar entre archivos. |
