@@ -1,0 +1,183 @@
+# Ambiente de los estudiantes -- CUY6142, Actividad 2.4.2.
+#
+# Un pod por estudiante (est-1 a est-20), cada uno con:
+#   - contenedor de inicio preparar-home: copia la plantilla de la carpeta personal (solo la 1a vez)
+#   - contenedor editor: code-server (VS Code en el navegador), puerto 8080
+#   - contenedor som:    SOM v2.1, puerto 8081 (el editor lo alcanza en http://localhost:8081)
+# y dos volumenes propios: home (carpeta personal) y datos-som (ordenes y suscripciones).
+#
+# Los Services NodePort de cada estudiante (puertos 301NN y 302NN) los genera el script
+# gestionar-ambiente.sh (subcomando servicios). Este archivo trae solo el Service headless
+# que exige el StatefulSet.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: est
+  namespace: cuy6142
+  labels:
+    app.kubernetes.io/name: est
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: est
+  ports:
+    - name: editor
+      port: 8080
+      targetPort: editor
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: est
+  namespace: cuy6142
+  labels:
+    app.kubernetes.io/name: est
+spec:
+  serviceName: est
+  replicas: 20
+  # Numeracion desde 1: el pod est-7 es el del estudiante 07 (Kubernetes 1.31 o superior).
+  ordinals:
+    start: 1
+  # Los 20 pods se crean a la vez, sin esperar uno por uno.
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: est
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: est
+    spec:
+      # Todos los procesos corren con el usuario 1000 (coder en el editor, appuser en SOM).
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # Reparte los pods en partes iguales entre los agentes (4 por agente con 5 agentes t3.medium).
+      # nodeTaintsPolicy Honor: el servidor, que tiene taint, no cuenta como destino posible.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: est
+      initContainers:
+        - name: preparar-home
+          image: moscosov/cuy6142-editor:v1
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/preparar-home.sh"]
+          volumeMounts:
+            - name: home
+              mountPath: /mnt/home
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      containers:
+        - name: editor
+          image: moscosov/cuy6142-editor:v1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: editor
+              containerPort: 8080
+          volumeMounts:
+            - name: home
+              mountPath: /home/coder
+            - name: claves
+              mountPath: /etc/claves
+              readOnly: true
+          # Medido el 08/10/2026: ~560 MiB con navegador conectado, archivo Python abierto y terminal.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 600Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: editor
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: editor
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+        - name: som
+          image: moscosov/som-api-demo:v2.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: som
+              containerPort: 8081
+          volumeMounts:
+            - name: datos-som
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 160Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v2/openapi.json
+              port: som
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v2/openapi.json
+              port: som
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        # Contrasenas del editor: un archivo por estudiante (est-1, est-2...), legible por el grupo 1000.
+        - name: claves
+          secret:
+            secretName: editor-claves
+            defaultMode: 0440
+  # Volumenes propios de cada estudiante. Se crean como home-est-N y datos-som-est-N
+  # y se conservan aunque el pod se reinicie o se elimine.
+  volumeClaimTemplates:
+    - metadata:
+        name: home
+        labels:
+          app.kubernetes.io/name: est
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi
+    - metadata:
+        name: datos-som
+        labels:
+          app.kubernetes.io/name: est
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 256Mi

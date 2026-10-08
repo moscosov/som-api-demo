@@ -1,0 +1,5 @@
+# Espacio de nombres del curso: agrupa todos los objetos del ambiente de la Actividad 2.4.2.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cuy6142
