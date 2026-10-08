@@ -4,7 +4,7 @@
 # Instala k3s en modo agente y lo une al servidor por su IP PRIVADA.
 #
 # Antes de pegarlo en la consola EC2, reemplace los tres valores entre < >.
-export K3S_URL="https://<IP_PRIVADA_SERVIDOR>:6443"
-export K3S_TOKEN="<TOKEN_K3S>"
-export INSTALL_K3S_VERSION="<VERSION_K3S>"
+export K3S_URL="https://172.31.39.206:6443"
+export K3S_TOKEN="K100a6415a014931ff6bad8842a84ad95c23bc019086ce2c9179c43dd3bbe03365b::server:86d409b06878f4e378c38ea8d73ec4d5"
+export INSTALL_K3S_VERSION="v1.36.5+k3s1"
 curl -sfL https://get.k3s.io | sh -
