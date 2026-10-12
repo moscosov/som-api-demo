@@ -11,8 +11,16 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Contrato Operativo y de Protocolo — Orden de Servicio (API Demo eTOM/SOM) |
+<<<<<<< ours
 | Versión | 2.2 |
 | Fecha | 12/10/2026 |
+||||||| base
+| Versión | 2.0 |
+| Fecha | 05/10/2026 |
+=======
+| Versión | 2.1 |
+| Fecha | 05/10/2026 |
+>>>>>>> theirs
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2 — Fundamentos y Consumo de APIs (2.3 / 2.4); base de la actividad formativa 2.4.2 |
@@ -28,7 +36,11 @@
 | 1.3 | 17/09/2026 | Pablo Moscoso | Sección 4 rediseñada: autenticación por mapa de dos claves por canal (`GUI`, `CRM`). Agregada Sección 6, Webhooks. Agregados endpoints `POST /webhooks` y `GET /webhooks/fallos`. Renumeradas Secciones 6 a 11 → 7 a 12 |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Cambio mayor, ruta base `/api/v2`. Sección 3: perfil de instancia AWS del estudiante y persistencia en volumen. Sección 4: login con autenticación básica (`loginViaBasic`) y tokens de sesión; credencial por header `X-API-KEY` o parámetro `key`. Sección 5: endpoints de trazabilidad, suscripciones y ofertas; parámetros de consulta (filtros, `sortBy`, `order`, `page`, `size`, `includeOferta`, `idioma`, `q`, `limit`); `PATCH` ampliado a `descripcion`; documentación navegable OpenAPI/Swagger. Sección 6: payload del webhook con `tipo_orden`, `com_id` y `subscription_id`. Sección 8: correspondencia entre reglas del Contrato de Datos (RV, RN) y códigos HTTP. Sección 9: serialización de la ejecución y `com_id` como clave de idempotencia. Sección 10: persistencia sale de las exclusiones |
 | 2.1 | 05/10/2026 | Pablo Moscoso | Sección 5.4: contenido de la especificación OpenAPI (descripciones de cada campo, formatos de los identificadores, valores por defecto, campos de solo lectura y catálogo de ofertas) y diferencia entre la revisión de formatos de Swagger UI y la de la API. Sin cambios en endpoints, reglas ni códigos de estado |
+<<<<<<< ours
 | 2.2 | 12/10/2026 | Pablo Moscoso | Secciones 3 y 4.3: las referencias al MOP de despliegue (reemplazado por la Actividad 2.4.2) se cambian por la documentación del ambiente y la Guía Rápida. Sección 6.2: efecto de un receptor que repite su registro, como `crm-som` 2.0. Sección 11: `crm_som.py` 2.0 y la colección Postman v2 como clientes vigentes. Sin cambios en endpoints, reglas ni códigos de estado |
+||||||| base
+=======
+>>>>>>> theirs
 
 ---
 

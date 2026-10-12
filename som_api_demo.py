@@ -1,5 +1,5 @@
 """
-som_api_demo.py -- version 2.0
+som_api_demo.py -- version 2.1
 
 API demo simplificada del proceso eTOM "Order Handling" (Process Identifier
 1.1.1.5), inspirada en el tipo de recurso gestionado por un sistema real de
@@ -9,8 +9,12 @@ conformidad ni certificacion -- con los API abiertos TM Forum TMF641
 
 Implementa exactamente lo definido en:
   - Contrato_Datos_OrdenServicio_DuocUC.md      (version 2.0)
-  - Contrato_Operativo_OrdenServicio_DuocUC.md  (version 2.0)
-  - DisenoFuncional_OrdenServicio_DuocUC.md     (version 2.0)
+  - Contrato_Operativo_OrdenServicio_DuocUC.md  (version 2.1)
+  - DisenoFuncional_OrdenServicio_DuocUC.md     (version 2.1)
+
+Version 2.1: solo cambia la documentacion OpenAPI (descripciones, formatos,
+valores por defecto y campos de solo lectura). El contrato y el
+comportamiento de la API son los de la version 2.0.
 
 Los comentarios citan las reglas del Contrato de Datos por su codigo
 (RV-xx: reglas de schema, RN-xx: reglas de negocio) y las secciones de los
@@ -123,40 +127,83 @@ CAMPOS_INMUTABLES = [
 #    se IGNORAN, no se rechazan (RV-09, RV-10).
 # ---------------------------------------------------------------------------
 
+#    Las claves "description", "default" y "title" solo documentan: jsonschema
+#    no las usa para validar. Se ven en Swagger UI (Seccion 17).
+
+TEXTO_CATALOGO = "\n".join(
+    f"- `{oferta['offer_id']}` {oferta['nombre']} ({oferta['tipo_servicio']})" for oferta in CATALOGO
+)
+
 PUNTO_SCHEMA = {
     "type": "object",
+    "description": "Ubicación de un punto de red en el plano del hogar, en metros. "
+                   "El eje x crece hacia el este y el eje y hacia el norte.",
     "properties": {
-        "x": {"type": "number", "minimum": 0, "maximum": 100},
-        "y": {"type": "number", "minimum": 0, "maximum": 100},
-        "referencia": {"type": "string", "maxLength": 40},
+        "x": {"type": "number", "minimum": 0, "maximum": 100,
+              "description": "Coordenada este-oeste, en metros, de 0 a 100. Admite decimales."},
+        "y": {"type": "number", "minimum": 0, "maximum": 100,
+              "description": "Coordenada norte-sur, en metros, de 0 a 100. Admite decimales."},
+        "referencia": {"type": "string", "maxLength": 40,
+                       "description": "Nombre del recinto (ej. Living), hasta 40 caracteres. "
+                                      "Aparece en los textos de los pasos de trabajo."},
     },
     "required": ["x", "y"],
 }
 
 PROPIEDADES_COMUNES = {
-    "tipo_orden": {"type": "string", "enum": TIPOS_ORDEN},
-    "com_id": {"type": "string", "pattern": "^[0-9]{7}$"},
-    "cliente_id": {"type": "string", "minLength": 1},
-    "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO},
-    "prioridad": {"type": "string", "enum": PRIORIDADES},
-    "descripcion": {"type": "string"},
+    "tipo_orden": {"type": "string", "enum": TIPOS_ORDEN, "default": "ALTA",
+                   "description": "Tipo de orden. Si se omite, se asume ALTA (RV-01)."},
+    "com_id": {"type": "string", "pattern": "^[0-9]{7}$",
+               "description": "Número de orden comercial del sistema que pide la orden (CRM o GUI). "
+                              "Exactamente 7 dígitos, como texto, para conservar los ceros a la izquierda "
+                              "(ej. \"0000005\"). Lo envía el cliente y no se puede repetir: un com_id "
+                              "ya usado responde 409 COM_ID_DUPLICADO (RN-01)."},
+    "cliente_id": {"type": "string", "minLength": 1,
+                   "description": "Identificador del cliente: texto no vacío (RV-04). En las actividades "
+                                  "del curso, el RUT sin puntos ni guion. En BAJA, CAMBIO_OFERTA y "
+                                  "RELOCALIZACION debe ser el titular de la suscripción (RN-05)."},
+    "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO,
+                      "description": "Servicio. Obligatorio en ALTA. En los demás tipos es opcional y, si "
+                                     "se envía, debe coincidir con el servicio de la suscripción (RN-06)."},
+    "prioridad": {"type": "string", "enum": PRIORIDADES, "default": "MEDIA",
+                  "description": "Prioridad de la orden. Si se omite, MEDIA."},
+    "descripcion": {"type": "string", "default": "",
+                    "description": "Detalle libre de la solicitud. Si se omite, queda vacía."},
 }
-SUBSCRIPTION_ID_SCHEMA = {"type": "string", "pattern": "^[0-9]{8}$"}
-OFFER_ID_SCHEMA = {"type": "string", "pattern": "^[0-9]{6}$"}
+SUBSCRIPTION_ID_SCHEMA = {
+    "type": "string", "pattern": "^[0-9]{8}$",
+    "description": "Suscripción: exactamente 8 dígitos, como texto. Prefijo de servicio (20 INTERNET, "
+                   "30 TV, 40 TELEFONIA) más un correlativo de 6 dígitos. La genera SOM al crear un ALTA. "
+                   "En BAJA, CAMBIO_OFERTA y RELOCALIZACION la envía el cliente: debe existir "
+                   "(404 SUSCRIPCION_NO_ENCONTRADA, RN-04) y estar ACTIVA (409 SUSCRIPCION_NO_ACTIVA, RN-07).",
+}
+OFFER_ID_SCHEMA = {
+    "type": "string", "pattern": "^[0-9]{6}$",
+    "description": "Oferta del catálogo: exactamente 6 dígitos, como texto. Prefijo de servicio (20 INTERNET, "
+                   "30 TV, 40 TELEFONIA) más el número de oferta. Una oferta que no está en el catálogo "
+                   "responde 404 OFERTA_NO_ENCONTRADA (RN-02); una de otro servicio, 422 "
+                   "OFERTA_NO_CORRESPONDE_A_SERVICIO (RN-03). Catálogo vigente:\n\n" + TEXTO_CATALOGO,
+}
 
 SCHEMAS_CREACION = {
     "ALTA": {
         "type": "object",
+        "title": "Creación de ALTA",
+        "description": "Contratar un servicio. Crea una suscripción en estado PENDIENTE.",
         "properties": {**PROPIEDADES_COMUNES, "offer_id": OFFER_ID_SCHEMA},
         "required": ["com_id", "cliente_id", "tipo_servicio", "offer_id"],
     },
     "BAJA": {
         "type": "object",
+        "title": "Creación de BAJA",
+        "description": "Dar de baja la suscripción indicada. Requiere tipo_orden BAJA.",
         "properties": {**PROPIEDADES_COMUNES, "subscription_id": SUBSCRIPTION_ID_SCHEMA},
         "required": ["com_id", "cliente_id", "subscription_id"],
     },
     "CAMBIO_OFERTA": {
         "type": "object",
+        "title": "Creación de CAMBIO_OFERTA",
+        "description": "Cambiar la oferta vigente de la suscripción. Requiere tipo_orden CAMBIO_OFERTA.",
         "properties": {
             **PROPIEDADES_COMUNES,
             "subscription_id": SUBSCRIPTION_ID_SCHEMA,
@@ -166,6 +213,9 @@ SCHEMAS_CREACION = {
     },
     "RELOCALIZACION": {
         "type": "object",
+        "title": "Creación de RELOCALIZACION",
+        "description": "Trasladar el punto de red dentro del hogar. Requiere tipo_orden RELOCALIZACION. "
+                       "SOM calcula los metros de cable, la duración y los pasos del trabajo.",
         "properties": {
             **PROPIEDADES_COMUNES,
             "subscription_id": SUBSCRIPTION_ID_SCHEMA,
@@ -179,9 +229,12 @@ SCHEMAS_CREACION = {
 # Reemplazo completo (PUT) -- RV-07: prioridad y descripcion obligatorios.
 REEMPLAZO_SCHEMA = {
     "type": "object",
+    "description": "Reemplazo completo de los campos editables: prioridad y descripción son obligatorios "
+                   "(RV-07). Si se incluye un campo inmutable, debe coincidir con su valor vigente "
+                   "(409 CAMPO_INMUTABLE, RN-13).",
     "properties": {
-        "prioridad": {"type": "string", "enum": PRIORIDADES},
-        "descripcion": {"type": "string"},
+        "prioridad": {"type": "string", "enum": PRIORIDADES, "description": "Prioridad nueva."},
+        "descripcion": {"type": "string", "description": "Descripción nueva."},
     },
     "required": ["prioridad", "descripcion"],
 }
@@ -190,9 +243,13 @@ REEMPLAZO_SCHEMA = {
 # descripcion, y ningun otro campo.
 ACTUALIZACION_SCHEMA = {
     "type": "object",
+    "description": "Actualización parcial: al menos uno de estado y descripción, y ningún otro campo (RV-08).",
     "properties": {
-        "estado": {"type": "string", "enum": ESTADOS_ORDEN},
-        "descripcion": {"type": "string"},
+        "estado": {"type": "string", "enum": ESTADOS_ORDEN,
+                   "description": "Estado nuevo. Transiciones permitidas: RECIBIDA a EN_PROGRESO, EN_PROGRESO "
+                                  "a COMPLETADA, y RECIBIDA o EN_PROGRESO a CANCELADA. Otra transición "
+                                  "responde 409 TRANSICION_INVALIDA (RN-11)."},
+        "descripcion": {"type": "string", "description": "Descripción nueva."},
     },
     "additionalProperties": False,
     "minProperties": 1,
@@ -201,7 +258,8 @@ ACTUALIZACION_SCHEMA = {
 # Registro de webhook -- Contrato Operativo, Seccion 6.2.
 WEBHOOK_SCHEMA = {
     "type": "object",
-    "properties": {"url": {"type": "string", "minLength": 1}},
+    "properties": {"url": {"type": "string", "minLength": 1,
+                           "description": "URL del receptor que recibirá las notificaciones de cambio de estado."}},
     "required": ["url"],
 }
 
@@ -1287,23 +1345,46 @@ def _param(nombre, ubicacion, schema, descripcion, requerido=False, explode=None
     return parametro
 
 
-ID_ORDEN_PARAM = _param("id", "path", {"type": "string"}, "id (UUID) de la orden", True)
+def _solo_lectura(schema, descripcion=None):
+    """Copia de un schema para las respuestas, marcada como generada por SOM."""
+    copia = {**schema, "readOnly": True}
+    if descripcion is not None:
+        copia["description"] = descripcion
+    return copia
+
+
+UUID_SCHEMA = {"type": "string", "format": "uuid"}
+FECHA_SCHEMA = {"type": "string", "format": "date-time", "readOnly": True}
+COM_ID_SCHEMA = PROPIEDADES_COMUNES["com_id"]
+COM_ID_FILTRO = {"type": "string", "pattern": "^[0-9]{7}$"}
+SUBSCRIPTION_ID_FILTRO = {"type": "string", "pattern": "^[0-9]{8}$"}
+OFFER_ID_FILTRO = {"type": "string", "pattern": "^[0-9]{6}$"}
+
+ID_ORDEN_PARAM = _param("id", "path", UUID_SCHEMA,
+                        "id (UUID) de la orden, el que entrega SOM al crearla. No es el com_id.", True)
 PAGINACION_PARAMS = [
-    _param("page", "query", {"type": "integer", "minimum": 1, "default": 1}, "Pagina solicitada"),
+    _param("page", "query", {"type": "integer", "minimum": 1, "default": 1}, "Página solicitada, desde 1"),
     _param("size", "query", {"type": "integer", "minimum": 1, "maximum": SIZE_MAXIMO, "default": SIZE_DEFAULT},
-           "Elementos por pagina"),
+           f"Elementos por página, de 1 a {SIZE_MAXIMO}"),
 ]
-TOTAL_HEADER = {"X-Total-Count": {"description": "Total de elementos que cumplen los filtros", "schema": {"type": "integer"}}}
+TOTAL_HEADER = {"X-Total-Count": {"description": "Total de elementos que cumplen los filtros, en todas las "
+                                                   "páginas", "schema": {"type": "integer"}}}
 
 OPENAPI = {
     "openapi": "3.0.3",
     "info": {
         "title": "SOM API Demo -- Orden de Servicio",
-        "version": "2.0",
+        "version": "2.1",
         "description": (
-            "API demo de Service Order Management, CUY6142 Duoc UC. Para autorizar: "
-            "ejecute POST /loginViaBasic con autenticacion basica (usuario gui o crm), "
-            "copie el token y peguelo en Authorize, campo X-API-KEY."
+            "API demo de Service Order Management, CUY6142 Duoc UC.\n\n"
+            "**Para autorizar:** (1) en Authorize, sección BasicAuth, ingrese usuario gui y contraseña "
+            "Cuy6142!; (2) ejecute POST /loginViaBasic y copie el token, sin comillas; (3) en Authorize, "
+            "sección ApiKeyHeader, pegue el token.\n\n"
+            "**Use esta página para consultar.** Lo que se crea o modifica con Try it out queda guardado en "
+            "SOM, igual que desde Postman.\n\n"
+            "**Formatos:** Swagger revisa el formato de los parámetros de la ruta y de los filtros antes de "
+            "enviar la solicitud. La API no los revisa: desde Postman o Python, un valor con otro formato "
+            "responde 404 (ruta) o una lista vacía (filtro)."
         ),
     },
     "servers": [{"url": BASE}],
@@ -1320,49 +1401,95 @@ OPENAPI = {
                 "properties": {"error": {"type": "object", "properties": {
                     "codigo": {"type": "string"}, "mensaje": {"type": "string"}}}},
             },
-            "Token": {"type": "object", "properties": {"token": {"type": "string"}}},
+            "Token": {"type": "object", "properties": {"token": {
+                "type": "string", "pattern": "^[a-z]+\\|[A-Za-z0-9_-]{43}$",
+                "description": "Token de sesión: usuario, el carácter | y 43 caracteres al azar "
+                               "(ej. gui|yOg3m_...). Se envía en el header X-API-KEY o en el parámetro key. "
+                               "Se pierde si SOM se reinicia."}}},
             "Punto": PUNTO_SCHEMA,
-            "Oferta": {"type": "object", "properties": {
-                "offer_id": {"type": "string"}, "nombre": {"type": "string"},
-                "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO}}},
-            "Orden": {"type": "object", "properties": {
-                "id": {"type": "string", "format": "uuid"},
-                "tipo_orden": {"type": "string", "enum": TIPOS_ORDEN},
-                "com_id": {"type": "string"},
-                "cliente_id": {"type": "string"},
-                "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO},
-                "offer_id": {"type": "string", "nullable": True},
-                "subscription_id": {"type": "string"},
-                "punto_actual": {"allOf": [_ref("Punto")], "nullable": True},
-                "punto_destino": {"allOf": [_ref("Punto")], "nullable": True},
-                "distancia_m": {"type": "number", "nullable": True},
-                "duracion_estimada_ms": {"type": "integer", "nullable": True},
-                "prioridad": {"type": "string", "enum": PRIORIDADES},
-                "descripcion": {"type": "string"},
-                "estado": {"type": "string", "enum": ESTADOS_ORDEN},
-                "fecha_creacion": {"type": "string"},
-                "fecha_actualizacion": {"type": "string"},
-                "oferta": {"allOf": [_ref("Oferta")], "nullable": True,
-                           "description": "Solo con includeOferta=true"},
+            "Oferta": {"type": "object", "description": "Oferta del catálogo. Solo lectura: el catálogo es fijo.",
+                       "properties": {
+                           "offer_id": OFFER_ID_SCHEMA,
+                           "nombre": {"type": "string", "description": "Nombre comercial de la oferta."},
+                           "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO,
+                                             "description": "Servicio de la oferta. Coincide con el prefijo "
+                                                            "de offer_id."}}},
+            "Orden": {"type": "object", "description": "Orden de servicio. Todos los campos están siempre "
+                      "presentes; un campo que no aplica al tipo de orden vale null.", "properties": {
+                "id": _solo_lectura(UUID_SCHEMA, "Identificador técnico que asigna SOM (UUID). Se usa en la "
+                                                 "ruta /ordenes/{id}."),
+                "tipo_orden": PROPIEDADES_COMUNES["tipo_orden"],
+                "com_id": COM_ID_SCHEMA,
+                "cliente_id": PROPIEDADES_COMUNES["cliente_id"],
+                "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO,
+                                  "description": "Servicio. En BAJA, CAMBIO_OFERTA y RELOCALIZACION lo toma SOM "
+                                                 "de la suscripción."},
+                "offer_id": {**OFFER_ID_SCHEMA, "nullable": True,
+                             "description": "Oferta contratada (ALTA) u oferta nueva (CAMBIO_OFERTA), 6 dígitos. "
+                                            "null en BAJA y RELOCALIZACION."},
+                "subscription_id": SUBSCRIPTION_ID_SCHEMA,
+                "punto_actual": {"allOf": [_ref("Punto")], "nullable": True,
+                                 "description": "Ubicación actual del punto de red. null si no es RELOCALIZACION."},
+                "punto_destino": {"allOf": [_ref("Punto")], "nullable": True,
+                                  "description": "Ubicación de destino. null si no es RELOCALIZACION."},
+                "distancia_m": {"type": "number", "nullable": True, "readOnly": True,
+                                "description": "Metros de cable a tender, sumando los tramos este-oeste y "
+                                               "norte-sur, con 3 decimales. Lo calcula SOM. null si no es "
+                                               "RELOCALIZACION."},
+                "duracion_estimada_ms": {"type": "integer", "nullable": True, "readOnly": True,
+                                         "description": "Duración estimada del trabajo, en milisegundos. La "
+                                                        "calcula SOM. null si no es RELOCALIZACION."},
+                "prioridad": PROPIEDADES_COMUNES["prioridad"],
+                "descripcion": PROPIEDADES_COMUNES["descripcion"],
+                "estado": {"type": "string", "enum": ESTADOS_ORDEN, "readOnly": True,
+                           "description": "Estado actual. Toda orden nace RECIBIDA; cambia con PATCH "
+                                          "(transición de estado) o DELETE (cancelación)."},
+                "fecha_creacion": {**FECHA_SCHEMA, "description": "Fecha y hora de creación, en UTC."},
+                "fecha_actualizacion": {**FECHA_SCHEMA, "description": "Fecha y hora del último cambio, en UTC."},
+                "oferta": {"allOf": [_ref("Oferta")], "nullable": True, "readOnly": True,
+                           "description": "Datos completos de la oferta. Solo aparece con includeOferta=true."},
             }},
-            "Suscripcion": {"type": "object", "properties": {
-                "subscription_id": {"type": "string"}, "cliente_id": {"type": "string"},
-                "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO},
-                "offer_id": {"type": "string"},
-                "estado": {"type": "string", "enum": ESTADOS_SUSCRIPCION},
-                "orden_alta_id": {"type": "string"},
-                "fecha_creacion": {"type": "string"}, "fecha_actualizacion": {"type": "string"}}},
-            "Trazabilidad": {"type": "object", "properties": {
-                "orden_id": {"type": "string"}, "com_id": {"type": "string"},
-                "tipo_orden": {"type": "string"}, "subscription_id": {"type": "string"},
-                "idioma": {"type": "string", "enum": IDIOMAS},
-                "historial": {"type": "array", "items": {"type": "object", "properties": {
-                    "estado": {"type": "string"}, "fecha": {"type": "string"}}}},
-                "trabajo": {"type": "object", "nullable": True, "properties": {
-                    "distancia_m": {"type": "number"}, "duracion_estimada_ms": {"type": "integer"},
-                    "pasos": {"type": "array", "items": {"type": "object", "properties": {
-                        "secuencia": {"type": "integer"}, "texto": {"type": "string"},
-                        "distancia_m": {"type": "number"}, "duracion_ms": {"type": "integer"}}}}}},
+            "Suscripcion": {"type": "object", "description": "Servicio contratado por un cliente. Solo lectura: "
+                            "se crea y cambia como efecto de las ordenes.", "properties": {
+                "subscription_id": SUBSCRIPTION_ID_SCHEMA,
+                "cliente_id": {"type": "string", "description": "Titular: el cliente_id del ALTA que la creó."},
+                "tipo_servicio": {"type": "string", "enum": TIPOS_SERVICIO,
+                                  "description": "Servicio. Coincide con el prefijo de subscription_id."},
+                "offer_id": {**OFFER_ID_SCHEMA, "description": "Oferta vigente, 6 dígitos. Cambia al "
+                                                               "completarse un CAMBIO_OFERTA."},
+                "estado": {"type": "string", "enum": ESTADOS_SUSCRIPCION,
+                           "description": "PENDIENTE al crear el ALTA; ACTIVA al completarlo; ANULADA si el ALTA "
+                                          "se cancela; BAJA al completarse una BAJA. Solo una suscripción ACTIVA "
+                                          "admite BAJA, CAMBIO_OFERTA y RELOCALIZACION."},
+                "orden_alta_id": {**UUID_SCHEMA, "description": "id de la orden de ALTA que creó la suscripción."},
+                "fecha_creacion": {**FECHA_SCHEMA, "description": "Fecha y hora de creación, en UTC."},
+                "fecha_actualizacion": {**FECHA_SCHEMA, "description": "Fecha y hora del último cambio, en UTC."}}},
+            "Trazabilidad": {"type": "object", "description": "Historial de estados de una orden y, en una "
+                             "RELOCALIZACION, el detalle del trabajo.", "properties": {
+                "orden_id": {**UUID_SCHEMA, "description": "id de la orden."},
+                "com_id": COM_ID_SCHEMA,
+                "tipo_orden": {"type": "string", "enum": TIPOS_ORDEN, "description": "Tipo de la orden."},
+                "subscription_id": SUBSCRIPTION_ID_SCHEMA,
+                "idioma": {"type": "string", "enum": IDIOMAS, "default": "en",
+                           "description": "Idioma de los textos de trabajo.pasos."},
+                "historial": {"type": "array", "description": "Un elemento por cada estado que tuvo la orden, "
+                              "desde RECIBIDA, en orden cronológico.", "items": {"type": "object", "properties": {
+                    "estado": {"type": "string", "enum": ESTADOS_ORDEN, "description": "Estado alcanzado."},
+                    "fecha": {"type": "string", "format": "date-time",
+                              "description": "Fecha y hora en que la orden alcanzó ese estado, en UTC."}}}},
+                "trabajo": {"type": "object", "nullable": True,
+                            "description": "Detalle del trabajo de una RELOCALIZACION. null en los demás tipos.",
+                            "properties": {
+                    "distancia_m": {"type": "number", "description": "Metros de cable, igual que en la orden."},
+                    "duracion_estimada_ms": {"type": "integer",
+                                             "description": "Duración total en milisegundos, igual que en la orden."},
+                    "pasos": {"type": "array", "description": "Pasos en orden de ejecución.",
+                              "items": {"type": "object", "properties": {
+                        "secuencia": {"type": "integer", "description": "Número de paso, desde 1."},
+                        "texto": {"type": "string", "description": "Instrucción del paso, en el idioma pedido."},
+                        "distancia_m": {"type": "number", "description": "Metros de cable del paso; 0 si no "
+                                                                         "hay tendido."},
+                        "duracion_ms": {"type": "integer", "description": "Duración del paso, en milisegundos."}}}}}},
             }},
             "CreacionAlta": SCHEMAS_CREACION["ALTA"],
             "CreacionBaja": SCHEMAS_CREACION["BAJA"],
@@ -1375,13 +1502,13 @@ OPENAPI = {
     },
     "paths": {
         "/loginViaBasic": {"post": {
-            "tags": ["Autenticacion"], "summary": "Obtener un token de sesion",
+            "tags": ["Autenticación"], "summary": "Obtener un token de sesión",
             "security": [{"BasicAuth": []}],
             "responses": {"200": _json_resp("Token emitido", _ref("Token")),
                           "401": _error_resp("CREDENCIALES_INVALIDAS")}}},
         "/ordenes": {
             "post": {
-                "tags": ["Ordenes"], "summary": "Crear orden (ALTA, BAJA, CAMBIO_OFERTA, RELOCALIZACION)",
+                "tags": ["Órdenes"], "summary": "Crear orden (ALTA, BAJA, CAMBIO_OFERTA, RELOCALIZACION)",
                 "requestBody": {"required": True, "content": {"application/json": {
                     "schema": {"oneOf": [_ref("CreacionAlta"), _ref("CreacionBaja"),
                                          _ref("CreacionCambioOferta"), _ref("CreacionRelocalizacion")]},
@@ -1405,13 +1532,14 @@ OPENAPI = {
                               "409": _error_resp("Regla de negocio sobre datos almacenados"),
                               "422": _error_resp("SCHEMA_INVALIDO u otra regla de contenido")}},
             "get": {
-                "tags": ["Ordenes"], "summary": "Listar ordenes",
+                "tags": ["Órdenes"], "summary": "Listar órdenes",
                 "parameters": [
                     _param("cliente_id", "query", {"type": "string"}, "Filtro por igualdad"),
-                    _param("subscription_id", "query", {"type": "string"}, "Filtro por igualdad"),
-                    _param("com_id", "query", {"type": "string"}, "Filtro por igualdad"),
-                    _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro"),
-                    _param("tipo_orden", "query", {"type": "string", "enum": TIPOS_ORDEN}, "Filtro"),
+                    _param("subscription_id", "query", SUBSCRIPTION_ID_FILTRO,
+                           "Filtro por igualdad. 8 dígitos"),
+                    _param("com_id", "query", COM_ID_FILTRO, "Filtro por igualdad. 7 dígitos"),
+                    _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro por servicio"),
+                    _param("tipo_orden", "query", {"type": "string", "enum": TIPOS_ORDEN}, "Filtro por tipo de orden"),
                     _param("estado", "query", {"type": "array", "items": {"type": "string", "enum": ESTADOS_ORDEN}},
                            "Uno o mas estados (se repite el parametro)", explode=True),
                     _param("sortBy", "query", {"type": "string", "enum": CAMPOS_ORDENAMIENTO,
@@ -1422,19 +1550,19 @@ OPENAPI = {
                     _param("includeOferta", "query", {"type": "boolean", "default": False},
                            "Agrega el campo oferta a cada orden"),
                 ],
-                "responses": {"200": {**_json_resp("Pagina de ordenes", {"type": "array", "items": _ref("Orden")}),
+                "responses": {"200": {**_json_resp("Página de órdenes", {"type": "array", "items": _ref("Orden")}),
                                       "headers": TOTAL_HEADER},
                               "400": _error_resp("PARAMETRO_INVALIDO"), "401": _error_resp("NO_AUTORIZADO")}},
         },
         "/ordenes/{id}": {
             "get": {
-                "tags": ["Ordenes"], "summary": "Consultar una orden",
+                "tags": ["Órdenes"], "summary": "Consultar una orden",
                 "parameters": [ID_ORDEN_PARAM, _param("includeOferta", "query", {"type": "boolean", "default": False},
                                                        "Agrega el campo oferta")],
                 "responses": {"200": _json_resp("Orden", _ref("Orden")), "401": _error_resp("NO_AUTORIZADO"),
                               "404": _error_resp("ORDEN_NO_ENCONTRADA")}},
             "put": {
-                "tags": ["Ordenes"], "summary": "Reemplazo completo de los campos editables",
+                "tags": ["Órdenes"], "summary": "Reemplazo completo de los campos editables",
                 "parameters": [ID_ORDEN_PARAM],
                 "requestBody": {"required": True, "content": {"application/json": {
                     "schema": _ref("Reemplazo"),
@@ -1443,7 +1571,7 @@ OPENAPI = {
                               "409": _error_resp("ORDEN_EN_ESTADO_TERMINAL o CAMPO_INMUTABLE"),
                               "422": _error_resp("SCHEMA_INVALIDO")}},
             "patch": {
-                "tags": ["Ordenes"], "summary": "Actualizar descripcion y/o transicionar estado",
+                "tags": ["Órdenes"], "summary": "Actualizar descripción y/o transicionar estado",
                 "parameters": [ID_ORDEN_PARAM],
                 "requestBody": {"required": True, "content": {"application/json": {
                     "schema": _ref("ActualizacionParcial"), "example": {"estado": "EN_PROGRESO"}}}},
@@ -1451,14 +1579,14 @@ OPENAPI = {
                               "409": _error_resp("Regla de negocio sobre datos almacenados"),
                               "422": _error_resp("SCHEMA_INVALIDO")}},
             "delete": {
-                "tags": ["Ordenes"], "summary": "Cancelar orden",
+                "tags": ["Órdenes"], "summary": "Cancelar orden",
                 "parameters": [ID_ORDEN_PARAM],
                 "responses": {"200": _json_resp("Orden cancelada", _ref("Orden")),
                               "404": _error_resp("ORDEN_NO_ENCONTRADA"),
                               "409": _error_resp("ORDEN_EN_ESTADO_TERMINAL")}},
         },
         "/ordenes/{id}/trazabilidad": {"get": {
-            "tags": ["Ordenes"], "summary": "Consultar la trazabilidad de una orden",
+            "tags": ["Órdenes"], "summary": "Consultar la trazabilidad de una orden",
             "parameters": [ID_ORDEN_PARAM, _param("idioma", "query", {"type": "string", "enum": IDIOMAS,
                                                                        "default": "en"}, "Idioma de los pasos")],
             "responses": {"200": _json_resp("Trazabilidad", _ref("Trazabilidad")),
@@ -1467,32 +1595,33 @@ OPENAPI = {
             "tags": ["Suscripciones"], "summary": "Listar suscripciones",
             "parameters": [
                 _param("cliente_id", "query", {"type": "string"}, "Filtro por igualdad"),
-                _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro"),
+                _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro por servicio"),
                 _param("estado", "query", {"type": "array", "items": {"type": "string", "enum": ESTADOS_SUSCRIPCION}},
                        "Uno o mas estados (se repite el parametro)", explode=True),
                 *PAGINACION_PARAMS,
             ],
-            "responses": {"200": {**_json_resp("Pagina de suscripciones",
+            "responses": {"200": {**_json_resp("Página de suscripciones",
                                                {"type": "array", "items": _ref("Suscripcion")}),
                                   "headers": TOTAL_HEADER},
                           "400": _error_resp("PARAMETRO_INVALIDO")}}},
         "/suscripciones/{subscription_id}": {"get": {
-            "tags": ["Suscripciones"], "summary": "Consultar una suscripcion",
-            "parameters": [_param("subscription_id", "path", {"type": "string"}, "subscription_id", True)],
-            "responses": {"200": _json_resp("Suscripcion", _ref("Suscripcion")),
+            "tags": ["Suscripciones"], "summary": "Consultar una suscripción",
+            "parameters": [_param("subscription_id", "path", SUBSCRIPTION_ID_FILTRO,
+                                  "subscription_id de la suscripción, 8 dígitos", True)],
+            "responses": {"200": _json_resp("Suscripción", _ref("Suscripcion")),
                           "404": _error_resp("SUSCRIPCION_NO_ENCONTRADA")}}},
         "/ofertas": {"get": {
             "tags": ["Ofertas"], "summary": "Listar o buscar ofertas",
             "parameters": [
                 _param("q", "query", {"type": "string"}, "Texto contenido en el nombre"),
-                _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro"),
-                _param("limit", "query", {"type": "integer", "minimum": 1}, "Cantidad maxima"),
+                _param("tipo_servicio", "query", {"type": "string", "enum": TIPOS_SERVICIO}, "Filtro por servicio"),
+                _param("limit", "query", {"type": "integer", "minimum": 1}, "Cantidad máxima de ofertas"),
             ],
             "responses": {"200": _json_resp("Ofertas", {"type": "array", "items": _ref("Oferta")}),
                           "400": _error_resp("PARAMETRO_INVALIDO")}}},
         "/ofertas/{offer_id}": {"get": {
             "tags": ["Ofertas"], "summary": "Consultar una oferta",
-            "parameters": [_param("offer_id", "path", {"type": "string"}, "offer_id", True)],
+            "parameters": [_param("offer_id", "path", OFFER_ID_FILTRO, "offer_id de la oferta, 6 dígitos", True)],
             "responses": {"200": _json_resp("Oferta", _ref("Oferta")),
                           "404": _error_resp("OFERTA_NO_ENCONTRADA")}}},
         "/webhooks": {"post": {
@@ -1505,6 +1634,12 @@ OPENAPI = {
             "responses": {"200": {"description": "Lista de intentos fallidos"}}}},
     },
 }
+
+# Toda ruta que exige credencial documenta el 401 -- Contrato Operativo, Seccion 4.
+for _ruta, _operaciones in OPENAPI["paths"].items():
+    if _ruta != "/loginViaBasic":
+        for _operacion in _operaciones.values():
+            _operacion["responses"].setdefault("401", _error_resp("NO_AUTORIZADO"))
 
 SWAGGER_UI_HTML = """<!doctype html>
 <html lang="es">
