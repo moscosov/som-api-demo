@@ -1,0 +1,10 @@
+
+# --- CUY6142: entorno de la Actividad 2.4.2 ------------------------------------------------
+# Activa el entorno virtual de Formativa242 en cada terminal nueva: el indicador muestra (.venv).
+if [ -f "$HOME/Formativa242/.venv/bin/activate" ]; then
+    . "$HOME/Formativa242/.venv/bin/activate"
+fi
+# Si la terminal se abre en la carpeta personal, entra a Formativa242.
+if [ "$PWD" = "$HOME" ] && [ -d "$HOME/Formativa242" ]; then
+    cd "$HOME/Formativa242" || true
+fi

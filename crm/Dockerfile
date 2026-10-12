@@ -1,3 +1,9 @@
+# crm-som v2.0 -- CUY6142 Duoc UC
+# Imagen publicada como moscosov/crm-som-demo:v2.0
+#
+# Construccion, desde la carpeta crm/ del repositorio:
+#   docker build -t moscosov/crm-som-demo:v2.0 .
+
 # Etapa builder: instala dependencias en un entorno virtual aislado
 FROM python:3.12-slim AS builder
 
@@ -7,16 +13,11 @@ WORKDIR /build
 
 COPY requirements.txt .
 
-RUN /opt/venv/bin/pip install -r requirements.txt
+RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 
 # Etapa final: imagen limpia que ejecuta la aplicacion como usuario no-root
 FROM python:3.12-slim
-
-# curl se usa en el healthcheck definido en docker-compose.yml
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -36,5 +37,9 @@ ENV PYTHONUNBUFFERED=1
 USER appuser
 
 EXPOSE $PORT
+
+# Mismo criterio que som-api: el chequeo usa Python, sin instalar curl.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/estado', timeout=3)"]
 
 CMD ["python", "crm_som.py"]

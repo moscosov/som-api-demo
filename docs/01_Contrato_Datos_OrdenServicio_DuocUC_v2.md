@@ -11,12 +11,18 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Contrato de Datos — Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 2.0 |
-| Fecha | 05/10/2026 |
+| Versión | 2.1 |
+| Fecha | 12/10/2026 |
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2 — Fundamentos y Consumo de APIs (2.3 / 2.4); base de la actividad formativa 2.4.2 |
+<<<<<<< ours
+| Documento asociado | Contrato Operativo y de Protocolo — Orden de Servicio (versión 2.2) |
+||||||| base
+| Documento asociado | Contrato Operativo y de Protocolo — Orden de Servicio (versión 2.0) |
+=======
 | Documento asociado | Contrato Operativo y de Protocolo — Orden de Servicio (versión 2.1) |
+>>>>>>> theirs
 
 ### Gestión de Versiones
 
@@ -26,6 +32,7 @@
 | 1.1 | 14/09/2026 | Pablo Moscoso | Validación de conformidad contra `Estandar_Documentacion_API_CUY6142.md` (Sección 3, checklist de Ficha de Contrato) — sin cambios de contenido |
 | 1.2 | 14/09/2026 | Pablo Moscoso | Sección 4 generalizada: la obligatoriedad de `cliente_id`/`tipo_servicio` y la regla de solo-lectura ahora cubren también el reemplazo completo, agregado al Contrato Operativo y de Protocolo |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Cambio mayor. Sección 2: alcance ampliado a tipos de orden, suscripciones y catálogo de ofertas. Sección 3: campos `tipo_orden`, `com_id`, `offer_id`, `subscription_id`, `punto_actual`, `punto_destino`, `distancia_m`, `duracion_estimada_ms`; estructura Punto; recursos asociados Suscripción y Oferta; representación de Trazabilidad. Sección 4: reglas identificadas (RV, RN), campos inmutables y editables, cálculo de relocalización. Sección 5: máquina de estados de la suscripción, efectos de las órdenes sobre la suscripción y serialización de la ejecución. Sección 7: corregida (indicaba versión 1.0) y justificación del cambio mayor |
+| 2.1 | 12/10/2026 | Pablo Moscoso | Sección 3.5: rangos de `com_id` por sistema solicitante, con el rango `9000000` a `9999999` reservado para `crm-som` 2.0. Es una convención entre sistemas solicitantes, no una regla de validación. Sección 7: alcance de la versión 2.1. Sección 8: término "Rango reservado de `com_id`". Sin cambios en campos, tipos, obligatoriedad, reglas ni máquinas de estados: el contrato sigue siendo el 2.0 |
 
 ---
 
@@ -155,6 +162,17 @@ Los identificadores numéricos se representan como string para conservar los cer
 | `20` | `INTERNET` |
 | `30` | `TV` |
 | `40` | `TELEFONIA` |
+
+#### Rangos de `com_id` por sistema solicitante
+
+El `com_id` lo emite el sistema que solicita la orden (Sección 3.1). Para que dos sistemas solicitantes no emitan el mismo número, cada uno usa un rango propio:
+
+| Rango | Sistema solicitante | Asignación del número |
+| --- | --- | --- |
+| `9000000` a `9999999` | `crm-som` 2.0, implementación de referencia del Sistema Cliente | Automática y correlativa, desde `9000001` |
+| `0000000` a `8999999` | Cualquier otro solicitante: Postman, `curl` o scripts Python | La define quien envía la orden |
+
+Los rangos son una **convención entre sistemas solicitantes, no una regla de validación**. El servicio solo exige el formato (RV-03) y la unicidad (RN-01), y acepta un `com_id` de cualquier rango desde cualquier solicitante. Un número del rango reservado enviado por otro solicitante es válido, pero adelanta la secuencia de `crm-som` o choca con el próximo número que este iba a emitir. Cómo se recupera `crm-som` de ese caso se documenta en la Guía de Integración CRM.
 
 ### 3.6 Valores Permitidos
 
@@ -566,6 +584,8 @@ La versión 2.0 es un cambio mayor respecto de 1.x por estos cambios incompatibl
 | La actualización parcial admite `descripcion`, además de `estado` | Cambia el alcance de la operación (RV-08) |
 | `ALTA` exige `offer_id` | Una creación sin oferta deja de ser válida (RV-02) |
 
+La versión 2.1 de este documento no cambia el contrato: agrega la convención de rangos de `com_id` por sistema solicitante (Sección 3.5), sin modificar campos, tipos, obligatoriedad ni reglas. Un cliente que cumple el contrato 2.0 sigue siendo válido sin cambios.
+
 ---
 
 ## 8. Glosario
@@ -580,6 +600,7 @@ La versión 2.0 es un cambio mayor respecto de 1.x por estos cambios incompatibl
 | Campo calculado | Campo de solo lectura cuyo valor el servidor deriva de otros campos (ej. `distancia_m`). |
 | Enum | Conjunto cerrado y finito de valores permitidos para un campo. |
 | Orden comercial (`com_id`) | Número con que el sistema comercial solicitante (CRM o GUI) identifica su pedido. Distinto del `id` técnico que asigna el SOM. |
+| Rango reservado de `com_id` | Intervalo de números de orden comercial que un sistema solicitante usa en forma exclusiva, por convención, para no emitir un número que otro sistema ya usó. |
 | Suscripción | Instancia de un servicio contratado por un cliente, creada por un `ALTA` y modificada por las órdenes posteriores. |
 | Oferta | Producto comercial del catálogo que define qué se contrata dentro de un servicio. |
 | Relocalización | Traslado de un punto de red dentro del hogar del cliente, desde un punto actual a un punto de destino. |

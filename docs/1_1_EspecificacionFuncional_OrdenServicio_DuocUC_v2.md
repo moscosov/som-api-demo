@@ -11,8 +11,8 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Especificación Funcional — Orden de Servicio (API Demo eTOM/SOM) |
-| Versión | 3.0 |
-| Fecha | 05/10/2026 |
+| Versión | 3.1 |
+| Fecha | 12/10/2026 |
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2 — Fundamentos y Consumo de APIs (2.3 / 2.4); base de la actividad formativa 2.4.2 |
@@ -22,7 +22,7 @@
 
 | De | Fecha | Email |
 | --- | --- | --- |
-| Pablo Moscoso (Docente) | 05/10/2026 | pablo.moscoso@profesor.duoc.cl |
+| Pablo Moscoso (Docente) | 12/10/2026 | pablo.moscoso@profesor.duoc.cl |
 
 | Para | Acción | Fecha Comprometida | Email |
 | --- | --- | --- | --- |
@@ -35,6 +35,7 @@
 | 1.0 | 15/09/2026 | Pablo Moscoso | Versión inicial |
 | 2.0 | 21/09/2026 | Pablo Moscoso | Cambio mayor, coordinado con Contrato Operativo v1.3: Sección 3 (el Sistema Cliente cuenta con implementación de referencia `crm-som`, canal CRM); Sección 4 (abreviación CRM); Sección 5 (casos de uso de notificación asíncrona); Sección 8 (autenticación diferenciada por canal, alcance real de la integración CRM); Sección 9 (referencia a `crm_som.py`) |
 | 3.0 | 05/10/2026 | Pablo Moscoso | Cambio mayor, coordinado con Contrato de Datos 2.0, Contrato Operativo 2.0 y Diseño Funcional 2.0. Sección 2: contexto ampliado a suscripciones, catálogo de ofertas y cuatro tipos de orden. Sección 3: nuevo actor Técnico de Terreno; el Sistema Cliente identifica sus pedidos con `com_id`; `crm-som` ya se despliega con los estudiantes (corrige la versión 2.0, que lo limitaba al docente); el Actor de Soporte inicia sesión con usuario y contraseña. Sección 4: abreviaciones COM, TMF638, TMF620, UUID y OpenAPI. Sección 5: casos de uso reescritos por tipo de orden, más órdenes encoladas, reenvío accidental y carga masiva. Sección 6: reglas de negocio de suscripciones, ofertas, titularidad y ejecución serializada. Sección 7: correspondencia con TMF638 y TMF620. Sección 8: alcance y dependencias actualizados. Sección 9: referencias numeradas |
+| 3.1 | 12/10/2026 | Pablo Moscoso | Cambio menor. Sección 2: el servidor de cada estudiante lo prepara el docente (Actividad 2.4.2). Sección 3: `crm-som` 2.0 vuelve a ser una demostración del docente (corrige la versión 3.0) y emite sus `com_id` en un rango reservado (Contrato de Datos 2.1, Sección 3.5). Sección 5: el Sistema Cliente repite el registro de su receptor. Sección 8: resuelta la dependencia de `crm_som.py` 2.0; el ambiente de los estudiantes depende de la Actividad 2.4.2. Sección 9: `crm_som.py` 2.0 y Guía de Integración CRM; la Actividad 2.4.2 reemplaza al MOP de Semana 8 |
 
 ---
 
@@ -51,7 +52,7 @@ Un proveedor de telecomunicaciones vende servicios (internet, televisión, telef
 
 Replica, en una versión simplificada con fines educativos, el tipo de interacción que resuelve un sistema real de Service Order Management (SOM) dentro de un proveedor de telecomunicaciones.
 
-En el curso CUY6142, el sistema permite al estudiante observar una API desde el lado que expone el servicio (servidor desplegado en su propia instancia) y desde el lado que lo consume (Postman, `curl` y scripts Python). Es la base de la actividad formativa 2.4.2, que ensaya con este sistema la misma mecánica de consumo de APIs que se evalúa después con otras APIs.
+En el curso CUY6142, el sistema permite al estudiante observar una API desde el lado que expone el servicio (cada estudiante tiene su propio servidor, en el ambiente que prepara el docente) y desde el lado que lo consume (Postman, `curl` y scripts Python). Es la base de la actividad formativa 2.4.2, que ensaya con este sistema la misma mecánica de consumo de APIs que se evalúa después con otras APIs.
 
 ---
 
@@ -59,10 +60,10 @@ En el curso CUY6142, el sistema permite al estudiante observar una API desde el 
 
 | Actor | Naturaleza | Rol |
 | --- | --- | --- |
-| Sistema Cliente | Automatizado (negocio) | Sistema comercial externo (CRM o canal de venta) que emite las órdenes de forma programática y las identifica con su propio número de orden comercial (`com_id`). Consulta el catálogo de ofertas y las suscripciones del cliente, crea órdenes de los cuatro tipos, las consulta y las cancela. No ejecuta el cumplimiento: no hace avanzar el estado de las órdenes. Recibe la notificación asíncrona de cada cambio de estado (Contrato Operativo, Sección 6). Se autentica con la clave fija del canal CRM. Cuenta con una implementación de referencia (`crm-som`), que los estudiantes despliegan junto al SOM en el MOP de la Semana 8. |
+| Sistema Cliente | Automatizado (negocio) | Sistema comercial externo (CRM o canal de venta) que emite las órdenes de forma programática y las identifica con su propio número de orden comercial (`com_id`). Consulta el catálogo de ofertas y las suscripciones del cliente, crea órdenes de los cuatro tipos, las consulta y las cancela. No ejecuta el cumplimiento: no hace avanzar el estado de las órdenes. Recibe la notificación asíncrona de cada cambio de estado (Contrato Operativo, Sección 6). Se autentica con la clave fija del canal CRM. Cuenta con una implementación de referencia, `crm-som` 2.0, que el docente opera como demostración y que emite sus `com_id` en un rango reservado (Contrato de Datos, Sección 3.5). |
 | Actor de Soporte | Manual (negocio, real) | Personal técnico que opera el SOM directamente con Postman o `curl`: hace avanzar las órdenes por las etapas de cumplimiento, consulta su trazabilidad, concilia órdenes cuya notificación no llegó al Sistema Cliente y cancela órdenes que ya no pueden ejecutarse. Inicia sesión con usuario y contraseña (canal GUI). Refleja un patrón real de operación, no una simplificación pedagógica. |
 | Técnico de Terreno | Manual (negocio, real) | Ejecuta en el hogar del cliente el trabajo de una orden (instalación, retiro, relocalización). No interactúa con el API en esta versión: recibe los pasos de trabajo de una relocalización a través del Actor de Soporte, y este informa al SOM el avance (`EN_PROGRESO`, `COMPLETADA`). |
-| Estudiante / Docente | Pedagógico (curso) | En la actividad 2.4.2, el estudiante asume dos roles reales: el del Sistema Cliente, cuando crea órdenes desde Postman o desde un script Python (por ejemplo, una carga masiva), y el del Actor de Soporte, cuando hace avanzar las órdenes y consulta su trazabilidad. Ambos replican flujos de trabajo reales, no inventados para la clase. |
+| Estudiante / Docente | Pedagógico (curso) | En la actividad 2.4.2, el estudiante asume dos roles reales: el del Sistema Cliente, cuando crea órdenes desde Postman o desde un script Python (por ejemplo, una carga masiva), y el del Actor de Soporte, cuando hace avanzar las órdenes y consulta su trazabilidad. Ambos replican flujos de trabajo reales, no inventados para la clase. En la demostración de `crm-som`, el docente opera el Sistema Cliente automatizado y el Actor de Soporte, y los estudiantes observan la notificación asíncrona. |
 
 ---
 
@@ -104,7 +105,7 @@ Las rutas se indican relativas a la base `/api/v2`. Las reglas de negocio citada
 | Carga masiva de órdenes | Sistema Cliente (script): `POST /ordenes` repetido → `GET /ordenes?page=...` recorriendo las páginas según `X-Total-Count` | Contrato Operativo, Sección 5.2 |
 | Actualización de los datos de una orden en curso | Actor de Soporte: `PATCH /ordenes/{id}` (solo `descripcion`) o `PUT /ordenes/{id}` (prioridad y descripción) | Contrato Operativo, Sección 5.3 |
 | Cancelación de una orden | Sistema Cliente o Actor de Soporte: `DELETE /ordenes/{id}` → si es un `ALTA`, la suscripción queda `ANULADA` | Contrato de Datos, Sección 5.3 |
-| Registro del receptor de notificaciones | Sistema Cliente: `POST /webhooks` | Contrato Operativo, Sección 6.2 |
+| Registro del receptor de notificaciones | Sistema Cliente: `POST /webhooks`, repetido periódicamente para recuperarse de un reinicio del SOM | Contrato Operativo, Sección 6.2 |
 | Conciliación de notificaciones no entregadas | Actor de Soporte: `GET /webhooks/fallos` → `GET /ordenes/{orden_id}` por cada entrada | Contrato Operativo, Sección 6.7 |
 | Dos órdenes de la misma suscripción listas para ejecutarse | Actor de Soporte: `PATCH` de la segunda a `EN_PROGRESO` mientras la primera está en ejecución → rechazada (RN-10); completa la primera y reintenta la segunda | Contrato de Datos, Sección 5.4 |
 | Orden en espera invalidada por una baja | Actor de Soporte: tras completar una `BAJA`, `PATCH` de una `RELOCALIZACION` que esperaba sobre la misma suscripción → rechazada (RN-07) → `DELETE` de la orden | Contrato de Datos, Sección 5.4 |
@@ -181,8 +182,8 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 - Prerrequisito del curso, CUY5132, cumplido.
 - Actividad 2.3 (Fundamentos del Uso de APIs) cursada: este ejercicio asume manejo previo de Postman y `curl` como cliente.
 - Contrato de Datos 2.0, Contrato Operativo y de Protocolo 2.0 y Diseño Funcional 2.0 vigentes: este documento no tiene sentido de forma aislada.
-- Una instancia AWS por estudiante con el servicio desplegado, según el MOP de despliegue.
-- Para que el Sistema Cliente opere en forma automatizada, `crm_som.py` debe estar actualizado a la versión 2.0 del API. Mientras eso no ocurra, el estudiante asume el rol del Sistema Cliente desde Postman o desde sus propios scripts.
+- Un servidor por estudiante con el servicio desplegado, en el ambiente que prepara el docente para la Actividad 2.4.2.
+- Para la demostración del Sistema Cliente automatizado, `crm-som` 2.0 desplegado junto al SOM, según la Guía de Integración CRM.
 
 ---
 
@@ -194,13 +195,14 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 | 2 | `Contrato_Datos_OrdenServicio_DuocUC.md` (2.0) | Recursos, reglas de validación y de negocio, máquinas de estados |
 | 3 | `Contrato_Operativo_OrdenServicio_DuocUC.md` (2.0) | Endpoints, autenticación, parámetros y códigos de estado |
 | 4 | `som_api_demo.py` | Implementación de referencia del API |
-| 5 | `crm_som.py` | Implementación de referencia del Sistema Cliente (canal CRM) |
-| 6 | `MOP_OrdenServicio_Semana8_DuocUC.md` | Procedimiento de despliegue del servicio en AWS |
-| 7 | `Estandar_Documentacion_API_CUY6142.md` | Estándar de documentación aplicado a este conjunto (uso interno del docente) |
-| 8 | TM Forum — Business Process Framework (eTOM) | Marco de procesos de negocio de referencia de industria — tmforum.org |
-| 9 | TM Forum — TMF641 Service Ordering Management | API abierto de gestión de órdenes de servicio — tmforum.org |
-| 10 | TM Forum — TMF638 Service Inventory Management | API abierto de inventario de servicios — tmforum.org |
-| 11 | TM Forum — TMF620 Product Catalog Management | API abierto de catálogo de productos — tmforum.org |
+| 5 | `crm_som.py` (2.0) | Implementación de referencia del Sistema Cliente (canal CRM) |
+| 6 | `Guia_Integracion_CRM_SomApi_OrdenServicio_DuocUC.md` | Integración entre `crm-som` y el SOM, despliegue y guion de la demostración (uso docente) |
+| 7 | `Actividad_2.4.2_Formativa_SOM_CUY6142.md` | Actividad formativa sobre el SOM, con la preparación del ambiente de cada estudiante |
+| 8 | `Estandar_Documentacion_API_CUY6142.md` | Estándar de documentación aplicado a este conjunto (uso interno del docente) |
+| 9 | TM Forum — Business Process Framework (eTOM) | Marco de procesos de negocio de referencia de industria — tmforum.org |
+| 10 | TM Forum — TMF641 Service Ordering Management | API abierto de gestión de órdenes de servicio — tmforum.org |
+| 11 | TM Forum — TMF638 Service Inventory Management | API abierto de inventario de servicios — tmforum.org |
+| 12 | TM Forum — TMF620 Product Catalog Management | API abierto de catálogo de productos — tmforum.org |
 
 ---
 
@@ -208,7 +210,7 @@ Este API cubre únicamente Order Handling, dentro del proceso más amplio de Ful
 
 Un cambio que solo actualiza contexto de negocio, actores o casos de uso, sin afectar las Fichas de Contrato: cambio menor. Un cambio que requiere modificar el Contrato de Datos o el Contrato Operativo (por ejemplo, un nuevo actor con permisos distintos, o un nuevo escenario que necesita un endpoint nuevo): cambio mayor, coordinado con ambas fichas.
 
-Esta especificación documenta la versión **3.0** del sistema, correspondiente a la versión 2.0 del API (`/api/v2`).
+Esta especificación documenta la versión **3.1** del sistema, correspondiente a la versión 2.0 del API (`/api/v2`).
 
 ---
 

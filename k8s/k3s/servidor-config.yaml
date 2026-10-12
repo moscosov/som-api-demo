@@ -1,0 +1,16 @@
+# Configuracion del nodo servidor de k3s (plano de control) -- CUY6142, Actividad 2.4.2.
+# Se copia a /etc/rancher/k3s/config.yaml ANTES de instalar k3s en el servidor.
+
+# Permite usar kubectl sin sudo con el usuario ubuntu.
+write-kubeconfig-mode: "0644"
+
+# Componentes incluidos en k3s que este ambiente no usa (se ahorra memoria):
+# traefik (Ingress) y servicelb (balanceador para Services LoadBalancer).
+disable:
+  - traefik
+  - servicelb
+
+# El servidor no recibe pods de estudiantes: solo los componentes del sistema,
+# que toleran esta restriccion (coredns, metrics-server, local-path-provisioner).
+node-taint:
+  - "CriticalAddonsOnly=true:NoExecute"

@@ -11,12 +11,20 @@
 | Campo | Valor |
 | --- | --- |
 | Documento | Contrato Operativo y de Protocolo — Orden de Servicio (API Demo eTOM/SOM) |
+<<<<<<< ours
+| Versión | 2.2 |
+| Fecha | 12/10/2026 |
+||||||| base
+| Versión | 2.0 |
+| Fecha | 05/10/2026 |
+=======
 | Versión | 2.1 |
 | Fecha | 05/10/2026 |
+>>>>>>> theirs
 | Preparado por | Pablo Moscoso |
 | Curso | CUY6142 — Telepresencia y Entornos Innovadores de Colaboración Humana |
 | Actividad relacionada | EA2 — Fundamentos y Consumo de APIs (2.3 / 2.4); base de la actividad formativa 2.4.2 |
-| Documento asociado | Contrato de Datos — Orden de Servicio (versión 2.0) |
+| Documento asociado | Contrato de Datos — Orden de Servicio (versión 2.1) |
 
 ### Gestión de Versiones
 
@@ -28,6 +36,11 @@
 | 1.3 | 17/09/2026 | Pablo Moscoso | Sección 4 rediseñada: autenticación por mapa de dos claves por canal (`GUI`, `CRM`). Agregada Sección 6, Webhooks. Agregados endpoints `POST /webhooks` y `GET /webhooks/fallos`. Renumeradas Secciones 6 a 11 → 7 a 12 |
 | 2.0 | 05/10/2026 | Pablo Moscoso | Cambio mayor, ruta base `/api/v2`. Sección 3: perfil de instancia AWS del estudiante y persistencia en volumen. Sección 4: login con autenticación básica (`loginViaBasic`) y tokens de sesión; credencial por header `X-API-KEY` o parámetro `key`. Sección 5: endpoints de trazabilidad, suscripciones y ofertas; parámetros de consulta (filtros, `sortBy`, `order`, `page`, `size`, `includeOferta`, `idioma`, `q`, `limit`); `PATCH` ampliado a `descripcion`; documentación navegable OpenAPI/Swagger. Sección 6: payload del webhook con `tipo_orden`, `com_id` y `subscription_id`. Sección 8: correspondencia entre reglas del Contrato de Datos (RV, RN) y códigos HTTP. Sección 9: serialización de la ejecución y `com_id` como clave de idempotencia. Sección 10: persistencia sale de las exclusiones |
 | 2.1 | 05/10/2026 | Pablo Moscoso | Sección 5.4: contenido de la especificación OpenAPI (descripciones de cada campo, formatos de los identificadores, valores por defecto, campos de solo lectura y catálogo de ofertas) y diferencia entre la revisión de formatos de Swagger UI y la de la API. Sin cambios en endpoints, reglas ni códigos de estado |
+<<<<<<< ours
+| 2.2 | 12/10/2026 | Pablo Moscoso | Secciones 3 y 4.3: las referencias al MOP de despliegue (reemplazado por la Actividad 2.4.2) se cambian por la documentación del ambiente y la Guía Rápida. Sección 6.2: efecto de un receptor que repite su registro, como `crm-som` 2.0. Sección 11: `crm_som.py` 2.0 y la colección Postman v2 como clientes vigentes. Sin cambios en endpoints, reglas ni códigos de estado |
+||||||| base
+=======
+>>>>>>> theirs
 
 ---
 
@@ -58,7 +71,7 @@ La versión 2.0 del servicio expone solo la ruta base `/api/v2`. La ruta `/api/v
 
 **Persistencia.** Las órdenes, las suscripciones y los contadores correlativos de `subscription_id` se guardan en un archivo JSON. La ruta del archivo se define con la variable de entorno `SOM_DATA_FILE`; por defecto es `data/som_data.json`, relativa al directorio de trabajo del proceso (`/app/data/som_data.json` dentro del contenedor). En el despliegue con Docker, el directorio `/app/data` se monta como volumen: los datos sobreviven al reinicio o recreación del contenedor y se pierden solo si se elimina el volumen. No se persisten los tokens de sesión (Sección 4), el webhook registrado ni el historial de entregas fallidas (Sección 6), que se pierden al reiniciar el proceso.
 
-**Fuera del alcance de este contrato:** configuración del grupo de seguridad, firewall del sistema operativo y red del entorno de ejecución. Son responsabilidad operativa de quien despliega el servicio, documentada en el MOP de despliegue correspondiente.
+**Fuera del alcance de este contrato:** configuración del grupo de seguridad, firewall del sistema operativo y red del entorno de ejecución. Son responsabilidad operativa de quien despliega el servicio, documentada en la guía de despliegue u operación del ambiente correspondiente (por ejemplo, la preparación del ambiente de la Actividad 2.4.2).
 
 ---
 
@@ -107,7 +120,7 @@ El token contiene el carácter `|`. En la línea de comandos, toda URL o header 
 | --- | --- |
 | Propósito | Integración entre sistemas, donde no hay un usuario que inicie sesión (por ejemplo, `crm-som`) |
 | Canales | `GUI` y `CRM`, una clave por canal |
-| Valor documental | `<API_KEY_CUY6142_GUI>` y `<API_KEY_CUY6142_CRM>`. Los valores reales vienen en el código del servicio y se indican en el MOP de despliegue |
+| Valor documental | `<API_KEY_CUY6142_GUI>` y `<API_KEY_CUY6142_CRM>`. Los valores reales vienen en el código del servicio y se indican en la Guía Rápida y en la Guía de Integración CRM |
 | Continuidad | Son las mismas claves de la versión 1.3 |
 
 ### 4.4 Canal de origen
@@ -338,6 +351,8 @@ curl -X POST 'http://<HOST>:8081/api/v2/webhooks' \
   -d '{"url":"http://crm-som:8082/webhooks/ordenes"}'
 ```
 
+**Receptor que repite su registro.** Como el registro no se persiste, un receptor puede repetirlo periódicamente para recuperarse de un reinicio del servicio; `crm-som` 2.0 lo hace por defecto cada 60 segundos. Repetir el registro con la misma URL no cambia nada en el servicio, salvo una línea en su log. Como existe un único webhook activo, ese receptor reemplaza en cada repetición a cualquier otro que se haya registrado en el mismo servicio: dos receptores no pueden convivir sobre una misma instancia.
+
 ### 6.3 Condiciones de disparo
 
 El servicio dispara una notificación hacia el webhook registrado únicamente cuando:
@@ -533,7 +548,7 @@ Una misma solicitud puede ser válida hoy y rechazada con `409` mañana; una rec
 - Cambiar el método HTTP de un endpoint existente, eliminar un endpoint, modificar el mecanismo de autenticación de forma que invalide credenciales vigentes, o cambiar el significado de un código de estado ya definido: cambio mayor. Requiere una nueva ruta base y coordinación con el Contrato de Datos si el cambio afecta la representación de los recursos.
 - Agregar una forma de autenticación nueva que coexiste con las vigentes sin invalidarlas es un cambio menor (criterio aplicado en la versión 1.3 y, de nuevo, en esta versión para el login con tokens de sesión).
 
-La versión 2.0 es un cambio mayor: acompaña al Contrato de Datos 2.0, cuyos cambios incompatibles (Sección 7 de ese documento) alteran el cuerpo de la creación, del reemplazo completo y de la actualización parcial. Por eso se publica bajo la ruta base `/api/v2`. El servicio 2.0 no expone `/api/v1`: los clientes de la versión 1.x (la colección Postman 1.x y `crm_som.py` 1.x) deben actualizarse a la versión 2.0.
+La versión 2.0 es un cambio mayor: acompaña al Contrato de Datos 2.0, cuyos cambios incompatibles (Sección 7 de ese documento) alteran el cuerpo de la creación, del reemplazo completo y de la actualización parcial. Por eso se publica bajo la ruta base `/api/v2`. El servicio 2.0 no expone `/api/v1`: los clientes de la versión 1.x (la colección Postman 1.x y `crm_som.py` 1.x) dejan de funcionar con él. Los clientes vigentes son la colección Postman v2 y `crm_som.py` 2.0.
 
 Esta ficha documenta la versión **2.0** del contrato operativo, correspondiente a la ruta base `/api/v2`.
 
