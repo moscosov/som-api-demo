@@ -1,0 +1,73 @@
+# SOM API Demo v2.1 + crm-som v2.0 -- CUY6142 Duoc UC
+#
+# Demostracion docente: som-api (fuente de verdad, puerto 8081) y crm-som
+# (plataforma CRM con interfaz web, puerto 8082), conectados por la red
+# som-network. crm-som se registra solo como receptor del webhook de som-api
+# y repite el registro cada WEBHOOK_REREGISTRO_SEGUNDOS.
+#
+# No levantar junto con docker-compose/som-api: ambos usan el contenedor
+# som-api y el puerto 8081. Este compose tiene su propio volumen de datos.
+#
+# Uso, desde esta carpeta:
+#   docker compose up -d      levanta ambos servicios en segundo plano
+#   docker compose ps         estado (ambos deben indicar "healthy")
+#   docker compose logs -f    registro de ambos servicios en tiempo real
+#   docker compose down       detiene los servicios y conserva los datos
+#   docker compose down -v    detiene los servicios y BORRA los datos
+#
+# Acceso:
+#   http://<HOST>:8082/               interfaz web de crm-som
+#   http://<HOST>:8081/api/v2/docs    documentacion de som-api (Swagger UI)
+
+name: som-crm
+
+services:
+  som-api:
+    image: moscosov/som-api-demo:v2.1
+    container_name: som-api
+    ports:
+      - "8081:8081"
+    volumes:
+      - som-data:/app/data
+    networks:
+      - som-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/v2/openapi.json', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  crm-som:
+    image: moscosov/crm-som-demo:v2.0
+    container_name: crm-som
+    ports:
+      - "8082:8082"
+    environment:
+      # Valores por defecto de la imagen, explicitos para que se vean y se
+      # puedan cambiar sin reconstruirla.
+      SOM_API_URL: http://som-api:8081/api/v2
+      SOM_API_KEY: DUOC-CUY6142-DEMO-CRM
+      WEBHOOK_SECRET: DUOC-CUY6142-DEMO-WEBHOOK-SECRET
+      WEBHOOK_URL_PROPIA: http://crm-som:8082/webhooks/ordenes
+      WEBHOOK_REREGISTRO_SEGUNDOS: "60"
+    networks:
+      - som-network
+    depends_on:
+      som-api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8082/estado', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  som-network:
+    name: som-network
+
+volumes:
+  som-data:
