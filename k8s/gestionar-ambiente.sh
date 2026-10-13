@@ -14,6 +14,8 @@
 #                       con la IP publica indicada o, sin IP, con la IP publica actual del servidor.
 #   tabla ARCHIVO.csv [IP]  Genera la tabla de acceso por estudiante, SIN contrasenas (se publica en
 #                       AVA), y aparte el archivo con las contrasenas de los cupos de reserva.
+#   docente             Aplica la contrasena del cupo del docente (docente.env) en el Secret y
+#                       reinicia solo ese pod. No cambia las contrasenas de los demas.
 #   estado              Muestra nodos, pods y uso de memoria.
 #   restablecer N       Deja el ambiente del estudiante N como nuevo (borra sus volumenes).
 #   prueba-carga        Ejecuta carga_masiva.py en todos los pods a la vez y resume el resultado.
@@ -23,6 +25,13 @@
 #   1,16123463,Perez,Rojas,Juan Andres
 # El archivo tiene datos personales: no se sube al repositorio (*.csv esta en .gitignore).
 #
+# Cupo del docente (opcional): archivo docente.env en esta carpeta, con permisos 600:
+#   DOCENTE_N=20
+#   DOCENTE_RUT=12345678
+# Si existe, ese cupo recibe como contrasena el RUT con digito verificador del docente en todos
+# los modos de "claves", no aparece en la tabla de acceso ni en el archivo de reservas, y el
+# archivo de la seccion no puede usar ese numero. docente.env esta en .gitignore.
+#
 # Variables opcionales: NS (por defecto cuy6142) y CUPOS (por defecto 20).
 set -euo pipefail
 
@@ -30,11 +39,15 @@ NS="${NS:-cuy6142}"
 CUPOS="${CUPOS:-20}"
 SECRET="editor-claves"
 DIR="$(cd "$(dirname "$0")" && pwd)"
+ARCHIVO_DOCENTE="${DIR}/docente.env"
+DOCENTE_N=""
+DOCENTE_CLAVE=""
 # Letras y numeros sin los que se confunden al leerlos (0/o, 1/l, i).
 ALFABETO='abcdefghjkmnpqrstuvwxyz23456789'
 
 uso() {
-    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+    # Muestra el comentario inicial del script, hasta la primera linea que no es comentario.
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
 }
 
 generar_clave() {
@@ -56,6 +69,25 @@ digito_verificador() {
         10) printf 'K' ;;
         *) printf '%s' "$resto" ;;
     esac
+}
+
+cargar_docente() {
+    # Lee docente.env sin ejecutarlo (no se usa "source") y deja DOCENTE_N y DOCENTE_CLAVE.
+    local n rut
+    [ -f "$ARCHIVO_DOCENTE" ] || return 0
+    n="$(sed -n 's/^DOCENTE_N=//p' "$ARCHIVO_DOCENTE" | tail -n 1 | tr -d ' \r"')"
+    rut="$(sed -n 's/^DOCENTE_RUT=//p' "$ARCHIVO_DOCENTE" | tail -n 1 | tr -d '. \r"')"
+    rut="${rut%%-*}"
+    if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -lt 1 ] || [ "$n" -gt "$CUPOS" ]; then
+        echo "ERROR en ${ARCHIVO_DOCENTE}: DOCENTE_N debe ser un numero entre 1 y ${CUPOS}" >&2
+        exit 1
+    fi
+    if ! [[ "$rut" =~ ^[0-9]{7,8}$ ]]; then
+        echo "ERROR en ${ARCHIVO_DOCENTE}: DOCENTE_RUT debe tener 7 u 8 digitos, sin digito verificador" >&2
+        exit 1
+    fi
+    DOCENTE_N="$n"
+    DOCENTE_CLAVE="${rut}$(digito_verificador "$rut")"
 }
 
 leer_archivo() {
@@ -91,6 +123,10 @@ leer_archivo() {
         apellidos="$(printf '%s %s' "$paterno" "$materno" | sed 's/ *$//')"
         NOMBRE[$n]="${apellidos}, ${nombres}"
     done < "$archivo"
+    if [ -n "$DOCENTE_N" ] && [ -n "${RUT[$DOCENTE_N]:-}" ]; then
+        echo "ERROR: el numero ${DOCENTE_N} es el cupo del docente (docente.env); asigne otro al estudiante" >&2
+        errores=$((errores + 1))
+    fi
     if [ "$errores" -gt 0 ]; then
         echo "El archivo tiene ${errores} error(es). Corrijalo y repita." >&2
         exit 1
@@ -117,7 +153,9 @@ cmd_claves() {
         # Modo archivo de la seccion: contrasena = RUT con digito verificador.
         leer_archivo "$primero"
         for n in $(seq 1 "$CUPOS"); do
-            if [ -n "${RUT[$n]:-}" ]; then
+            if [ "$n" = "$DOCENTE_N" ]; then
+                args+=("--from-literal=est-${n}=${DOCENTE_CLAVE}")
+            elif [ -n "${RUT[$n]:-}" ]; then
                 args+=("--from-literal=est-${n}=${RUT[$n]}$(digito_verificador "${RUT[$n]}")")
             else
                 args+=("--from-literal=est-${n}=$(generar_clave)")
@@ -125,7 +163,12 @@ cmd_claves() {
         done
         kubectl -n "$NS" create secret generic "$SECRET" "${args[@]}" --dry-run=client -o yaml \
             | kubectl apply -f -
-        echo "Secret ${SECRET} listo: ${#RUT[@]} estudiantes y $((CUPOS - ${#RUT[@]})) cupos de reserva."
+        if [ -n "$DOCENTE_N" ]; then
+            echo "Secret ${SECRET} listo: ${#RUT[@]} estudiantes, $((CUPOS - ${#RUT[@]} - 1)) cupos de reserva" \
+                "y el cupo ${DOCENTE_N} del docente."
+        else
+            echo "Secret ${SECRET} listo: ${#RUT[@]} estudiantes y $((CUPOS - ${#RUT[@]})) cupos de reserva."
+        fi
         echo "Los editores leen la contrasena al arrancar. Si los pods ya existen, reinicielos:"
         echo "  kubectl -n ${NS} rollout restart statefulset est"
         return 0
@@ -137,7 +180,11 @@ cmd_claves() {
         return 0
     fi
     for n in $(seq 1 "$CUPOS"); do
-        args+=("--from-literal=est-${n}=$(generar_clave)")
+        if [ "$n" = "$DOCENTE_N" ]; then
+            args+=("--from-literal=est-${n}=${DOCENTE_CLAVE}")
+        else
+            args+=("--from-literal=est-${n}=$(generar_clave)")
+        fi
     done
     kubectl -n "$NS" create secret generic "$SECRET" "${args[@]}" --dry-run=client -o yaml \
         | kubectl apply -f -
@@ -216,6 +263,8 @@ cmd_tabla_archivo() {
         echo "| --- | --- |"
     } > "$reservas"
     for n in $(seq 1 "$CUPOS"); do
+        # El cupo del docente no se publica ni aparece en las reservas.
+        [ "$n" = "$DOCENTE_N" ] && continue
         estudiante="${NOMBRE[$n]:-Reserva}"
         printf '| %02d | %s | http://%s:%d | http://%s:%d/api/v2 | http://%s:%d/api/v2/docs |\n' \
             "$n" "$estudiante" "$ip" $((30100 + n)) "$ip" $((30200 + n)) "$ip" $((30200 + n)) >> "$tabla"
@@ -253,6 +302,7 @@ cmd_tabla() {
                 echo "ERROR: el Secret ${SECRET} no tiene la clave est-${n}. Ejecute: $0 claves --forzar" >&2
                 exit 1
             fi
+            [ "$n" = "$DOCENTE_N" ] && clave="(docente)"
             printf '| %02d | http://%s:%d | http://%s:%d/api/v2 | http://%s:%d/api/v2/docs | %s |\n' \
                 "$n" "$ip" $((30100 + n)) "$ip" $((30200 + n)) "$ip" $((30200 + n)) "$clave"
         done
@@ -260,6 +310,26 @@ cmd_tabla() {
     cat "$archivo"
     echo
     echo "Tabla guardada en ${archivo}"
+}
+
+cmd_docente() {
+    local valor
+    if [ -z "$DOCENTE_N" ]; then
+        echo "ERROR: no existe ${ARCHIVO_DOCENTE}. Creelo con DOCENTE_N y DOCENTE_RUT (ver: $0 sin argumentos)." >&2
+        exit 1
+    fi
+    if ! kubectl -n "$NS" get secret "$SECRET" > /dev/null 2>&1; then
+        echo "ERROR: el Secret ${SECRET} no existe. Ejecute primero: $0 claves ARCHIVO.csv" >&2
+        exit 1
+    fi
+    # Cambia solo la clave del cupo del docente; las demas quedan igual.
+    valor="$(printf '%s' "$DOCENTE_CLAVE" | base64 | tr -d '\n')"
+    kubectl -n "$NS" patch secret "$SECRET" --type merge \
+        -p "{\"data\":{\"est-${DOCENTE_N}\":\"${valor}\"}}" > /dev/null
+    echo "Secret ${SECRET}: cupo ${DOCENTE_N} con la contrasena del docente."
+    # El editor lee la contrasena al arrancar: se reinicia solo ese pod (sus volumenes se conservan).
+    kubectl -n "$NS" delete pod "est-${DOCENTE_N}" --ignore-not-found
+    echo "Revise que vuelva a 2/2 Running: kubectl -n ${NS} get pod est-${DOCENTE_N}"
 }
 
 cmd_estado() {
@@ -318,10 +388,12 @@ cmd_prueba_carga() {
 
 subcomando="${1:-}"
 shift || true
+cargar_docente
 case "$subcomando" in
     claves) cmd_claves "$@" ;;
     servicios) cmd_servicios ;;
     tabla) cmd_tabla "$@" ;;
+    docente) cmd_docente ;;
     estado) cmd_estado ;;
     restablecer) cmd_restablecer "$@" ;;
     prueba-carga) cmd_prueba_carga ;;
