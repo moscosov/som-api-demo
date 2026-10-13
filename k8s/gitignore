@@ -1,0 +1,7 @@
+# Datos personales de los estudiantes y archivos generados en el servidor: no se suben.
+*.csv
+tabla-acceso-*.md
+reservas-*.md
+credenciales-*.md
+servicios-generados.yaml
+prueba-carga-*/
